@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code v2.1.88 — 项目深度分析报告</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; line-height: 1.7; }
+  .hero { background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 50%, #1a1f2e 100%); border-bottom: 1px solid #2d3748; padding: 60px 40px; text-align: center; }
+  .hero h1 { font-size: 2.8rem; font-weight: 800; background: linear-gradient(90deg, #63b3ed, #9f7aea, #ed64a6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 12px; }
+  .hero .subtitle { color: #718096; font-size: 1.1rem; }
+  .hero .badge { display: inline-block; background: #2d3748; border: 1px solid #4a5568; border-radius: 20px; padding: 4px 16px; font-size: 0.85rem; color: #a0aec0; margin: 8px 4px; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+  .toc { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px 32px; margin-bottom: 40px; }
+  .toc h2 { color: #63b3ed; font-size: 1.2rem; margin-bottom: 16px; }
+  .toc ol { padding-left: 20px; columns: 2; column-gap: 40px; }
+  .toc li { margin: 6px 0; }
+  .toc a { color: #a0aec0; text-decoration: none; font-size: 0.95rem; }
+  .toc a:hover { color: #63b3ed; }
+  .section { margin-bottom: 48px; }
+  .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid #2d3748; }
+  .section-icon { font-size: 1.5rem; }
+  .section-title { font-size: 1.6rem; font-weight: 700; color: #f7fafc; }
+  .card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+  .card h3 { color: #63b3ed; font-size: 1.15rem; margin-bottom: 12px; }
+  .card h4 { color: #9f7aea; font-size: 1rem; margin: 16px 0 8px; }
+  .card p { color: #a0aec0; margin-bottom: 10px; }
+  .card ul, .card ol { padding-left: 20px; color: #a0aec0; }
+  .card li { margin: 6px 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .tag { display: inline-block; background: #2d3748; border-radius: 6px; padding: 2px 10px; font-size: 0.8rem; color: #a0aec0; margin: 3px; font-family: monospace; }
+  .tag.blue { background: #1a365d; color: #63b3ed; }
+  .tag.purple { background: #322659; color: #b794f4; }
+  .tag.green { background: #1c4532; color: #68d391; }
+  .tag.orange { background: #7b341e; color: #fbd38d; }
+  .tag.red { background: #742a2a; color: #fc8181; }
+  .code { background: #0d1117; border: 1px solid #2d3748; border-radius: 8px; padding: 16px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85rem; color: #e2e8f0; overflow-x: auto; white-space: pre; margin: 10px 0; }
+  .highlight { background: #2d3748; border-left: 3px solid #63b3ed; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 10px 0; color: #e2e8f0; }
+  .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .pros { background: #1c4532; border: 1px solid #276749; border-radius: 12px; padding: 20px; }
+  .cons { background: #742a2a; border: 1px solid #9b2c2c; border-radius: 12px; padding: 20px; }
+  .pros h3 { color: #68d391; margin-bottom: 12px; }
+  .cons h3 { color: #fc8181; margin-bottom: 12px; }
+  .pros li, .cons li { color: #e2e8f0; margin: 8px 0; font-size: 0.95rem; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th { background: #2d3748; color: #e2e8f0; padding: 10px 14px; text-align: left; font-size: 0.9rem; }
+  td { padding: 10px 14px; border-bottom: 1px solid #2d3748; color: #a0aec0; font-size: 0.9rem; }
+  tr:hover td { background: #1a1f2e; }
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 20px; text-align: center; }
+  .stat .num { font-size: 2rem; font-weight: 800; color: #63b3ed; }
+  .stat .label { color: #718096; font-size: 0.85rem; margin-top: 4px; }
+  .arch-diagram { background: #0d1117; border: 1px solid #2d3748; border-radius: 12px; padding: 24px; font-family: monospace; font-size: 0.85rem; color: #a0aec0; line-height: 2; }
+  .flow-item { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #1a1f2e; }
+  .flow-item:last-child { border-bottom: none; }
+  .flow-num { background: #2d3748; color: #63b3ed; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+  .flow-text { color: #a0aec0; font-size: 0.95rem; }
+  .badge-row { margin: 8px 0; }
+  footer { text-align: center; padding: 40px; color: #4a5568; border-top: 1px solid #2d3748; margin-top: 60px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Claude Code v2.1.88</h1>
+  <p class="subtitle">深度技术分析报告 · Decompiled Source Research Edition</p>
+  <div style="margin-top: 20px;">
+    <span class="badge">TypeScript 6.0.2</span>
+    <span class="badge">Bun Runtime</span>
+    <span class="badge">React + Ink</span>
+    <span class="badge">42+ Tools</span>
+    <span class="badge">MCP Integration</span>
+    <span class="badge">Swarm/Multi-Agent</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="toc">
+    <h2>📋 目录</h2>
+    <ol>
+      <li><a href="#overview">项目概览</a></li>
+      <li><a href="#tech-stack">技术栈</a></li>
+      <li><a href="#architecture">系统架构</a></li>
+      <li><a href="#tools">工具系统（42+工具）</a></li>
+      <li><a href="#commands">命令系统（80+命令）</a></li>
+      <li><a href="#agents">Agent & 多智能体系统</a></li>
+      <li><a href="#mcp">MCP 集成</a></li>
+      <li><a href="#skills">Skills 技能系统</a></li>
+      <li><a href="#ui">UI/UX 设计</a></li>
+      <li><a href="#security">安全与权限模型</a></li>
+      <li><a href="#engineering">工程实践</a></li>
+      <li><a href="#pros-cons">优劣势分析</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. 项目概览 -->
+  <div class="section" id="overview">
+    <div class="section-header">
+      <span class="section-icon">🎯</span>
+      <span class="section-title">项目概览</span>
+    </div>
+    <div class="stat-grid">
+      <div class="stat"><div class="num">v2.1.88</div><div class="label">当前版本</div></div>
+      <div class="stat"><div class="num">42+</div><div class="label">内置工具</div></div>
+      <div class="stat"><div class="num">80+</div><div class="label">斜杠命令</div></div>
+      <div class="stat"><div class="num">6</div><div class="label">Agent 类型</div></div>
+    </div>
+    <div class="card">
+      <h3>什么是 Claude Code？</h3>
+      <p>Claude Code 是 Anthropic 官方发布的 AI 编程助手 CLI 工具，以 <strong>agentic coding</strong> 为核心理念，让 AI 能够直接操作文件系统、执行 Shell 命令、调用外部 API，并与多种开发工具深度集成。</p>
+      <p>它不仅是一个简单的聊天界面，而是一个完整的 <strong>AI 软件工程代理平台</strong>，支持：</p>
+      <ul>
+        <li>多 Agent 协作（Swarm 模式，tmux/iTerm2/in-process 后端）</li>
+        <li>MCP（Model Context Protocol）服务器集成</li>
+        <li>可扩展的 Skills 技能系统</li>
+        <li>完整的权限与安全控制模型</li>
+        <li>跨平台 IDE 扩展（VS Code、JetBrains）</li>
+      </ul>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>部署形式</h3>
+        <ul>
+          <li>🖥️ <strong>CLI 工具</strong>（终端命令行）</li>
+          <li>🖥️ <strong>桌面应用</strong>（Mac/Windows）</li>
+          <li>🌐 <strong>Web 应用</strong>（claude.ai/code）</li>
+          <li>🔌 <strong>IDE 扩展</strong>（VS Code、JetBrains）</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>核心定位</h3>
+        <ul>
+          <li>Agentic Coding 平台</li>
+          <li>AI 辅助软件工程</li>
+          <li>多 Agent 协作框架</li>
+          <li>可扩展 AI 工具链</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 技术栈 -->
+  <div class="section" id="tech-stack">
+    <div class="section-header">
+      <span class="section-icon">⚙️</span>
+      <span class="section-title">技术栈</span>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>核心运行时 & 语言</h3>
+        <table>
+          <tr><th>技术</th><th>版本/说明</th></tr>
+          <tr><td>Runtime</td><td><span class="tag blue">Bun</span> (主运行时)</td></tr>
+          <tr><td>语言</td><td><span class="tag blue">TypeScript 6.0.2</span></td></tr>
+          <tr><td>Node.js</td><td>≥18.0.0 兼容</td></tr>
+          <tr><td>模块系统</td><td>ESM (ES2022 target)</td></tr>
+          <tr><td>编译器</td><td>esbuild ^0.27.4</td></tr>
+          <tr><td>JSX</td><td>react-jsx transform</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>UI 框架</h3>
+        <table>
+          <tr><th>技术</th><th>说明</th></tr>
+          <tr><td>React</td><td>用于终端 UI 组件</td></tr>
+          <tr><td>Ink</td><td>自定义 fork，React for CLI</td></tr>
+          <tr><td>渲染目标</td><td>终端 (TTY) + Web</td></tr>
+          <tr><td>组件模型</td><td>函数组件 + Hooks</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <h3>关键依赖</h3>
+        <div class="badge-row">
+          <span class="tag blue">@anthropic-ai/sdk</span>
+          <span class="tag purple">zod/v4</span>
+          <span class="tag green">commander.js</span>
+          <span class="tag orange">@modelcontextprotocol/sdk</span>
+          <span class="tag blue">react</span>
+          <span class="tag purple">ink (fork)</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>构建工具</h3>
+        <div class="badge-row">
+          <span class="tag blue">esbuild</span>
+          <span class="tag purple">bun:bundle</span>
+          <span class="tag green">TypeScript tsc</span>
+          <span class="tag orange">Feature flags</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>特殊机制</h3>
+        <div class="badge-row">
+          <span class="tag blue">bun:bundle feature()</span>
+          <span class="tag purple">Dead code elimination</span>
+          <span class="tag green">GrowthBook flags</span>
+          <span class="tag orange">Lazy requires</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Feature Flag 系统</h3>
+      <p>Claude Code 使用 Bun 的 <code>bun:bundle</code> 模块中的 <code>feature()</code> 函数实现编译时 Feature Flag，配合 GrowthBook 实现运行时 A/B 测试和功能开关。</p>
+      <div class="code">// 编译时 feature flags（Dead Code Elimination）
+import { feature } from 'bun:bundle'
+feature('COORDINATOR_MODE')   // 协调者模式
+feature('KAIROS')             // KAIROS 助手模式
+feature('TRANSCRIPT_CLASSIFIER')  // 自动分类器
+feature('BUILTIN_EXPLORE_PLAN_AGENTS')  // 内置探索/计划 Agent</div>
+      <p>这些 flag 在编译时被评估，未启用的代码分支会被 esbuild 的 tree-shaking 完全移除，实现零运行时开销的功能开关。</p>
+    </div>
+  </div>
+
+  <!-- 3. 系统架构 -->
+  <div class="section" id="architecture">
+    <div class="section-header">
+      <span class="section-icon">🏗️</span>
+      <span class="section-title">系统架构</span>
+    </div>
+    <div class="arch-diagram">
+┌─────────────────────────────────────────────────────────────┐
+│                    Claude Code 架构总览                       │
+├─────────────────────────────────────────────────────────────┤
+│  入口层 (src/main.tsx)                                        │
+│  ├── Commander.js CLI 解析                                   │
+│  ├── 并行启动: profileCheckpoint + startMdmRawRead           │
+│  └── 懒加载模块（防止循环依赖）                               │
+├─────────────────────────────────────────────────────────────┤
+│  REPL 层 (src/screens/REPL.tsx, ~5005行)                     │
+│  ├── React + Ink 终端渲染                                    │
+│  ├── 会话状态管理 (AppState)                                  │
+│  └── 工具调用协调                                             │
+├─────────────────────────────────────────────────────────────┤
+│  工具层 (src/tools/)                                          │
+│  ├── 42+ 内置工具                                            │
+│  ├── MCP 工具（动态注册）                                    │
+│  └── 权限控制层                                              │
+├─────────────────────────────────────────────────────────────┤
+│  Agent 层 (src/tools/AgentTool/)                             │
+│  ├── 内置 Agent（6种类型）                                   │
+│  ├── 自定义 Agent（.claude/agents/*.md）                     │
+│  └── Swarm 多 Agent 协作                                     │
+├─────────────────────────────────────────────────────────────┤
+│  基础设施层                                                   │
+│  ├── MCP 服务 (src/services/mcp/)                            │
+│  ├── 权限系统 (src/utils/permissions/)                       │
+│  ├── 安全层 (src/tools/BashTool/bashSecurity.ts)             │
+│  └── 持久化 (settings.json, memory/)                         │
+└─────────────────────────────────────────────────────────────┘</div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>目录结构</h3>
+        <div class="code">src/
+├── main.tsx          # CLI 入口
+├── Tool.ts           # 工具类型定义
+├── screens/          # UI 界面
+│   └── REPL.tsx      # 主交互界面(5005行)
+├── tools/            # 42+ 内置工具
+│   ├── AgentTool/    # Agent 系统
+│   ├── BashTool/     # Shell 执行
+│   ├── ReadTool/     # 文件读取
+│   └── ...
+├── services/         # 后端服务
+│   └── mcp/          # MCP 集成
+├── utils/            # 工具函数
+│   ├── swarm/        # 多 Agent
+│   └── permissions/  # 权限系统
+├── types/            # 类型定义
+├── skills/           # 内置技能
+└── state/            # 应用状态</div>
+      </div>
+      <div class="card">
+        <h3>请求处理流程</h3>
+        <div class="flow-item"><div class="flow-num">1</div><div class="flow-text">用户输入 → REPL.tsx 接收</div></div>
+        <div class="flow-item"><div class="flow-num">2</div><div class="flow-text">Hook 系统触发 (UserPromptSubmit)</div></div>
+        <div class="flow-item"><div class="flow-num">3</div><div class="flow-text">发送至 Anthropic API</div></div>
+        <div class="flow-item"><div class="flow-num">4</div><div class="flow-text">流式响应解析</div></div>
+        <div class="flow-item"><div class="flow-num">5</div><div class="flow-text">工具调用检测</div></div>
+        <div class="flow-item"><div class="flow-num">6</div><div class="flow-text">权限检查 (PreToolUse Hook)</div></div>
+        <div class="flow-item"><div class="flow-num">7</div><div class="flow-text">工具执行</div></div>
+        <div class="flow-item"><div class="flow-num">8</div><div class="flow-text">结果返回 (PostToolUse Hook)</div></div>
+        <div class="flow-item"><div class="flow-num">9</div><div class="flow-text">React 渲染更新</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 工具系统 -->
+  <div class="section" id="tools">
+    <div class="section-header">
+      <span class="section-icon">🔧</span>
+      <span class="section-title">工具系统（42+ 工具）</span>
+    </div>
+    <div class="card">
+      <h3>工具分类总览</h3>
+      <div class="grid-3">
+        <div>
+          <h4>文件操作</h4>
+          <ul>
+            <li><span class="tag blue">Read</span> 读取文件</li>
+            <li><span class="tag blue">Write</span> 写入文件</li>
+            <li><span class="tag blue">Edit</span> 精确编辑（diff）</li>
+            <li><span class="tag blue">MultiEdit</span> 批量编辑</li>
+            <li><span class="tag blue">Glob</span> 文件模式匹配</li>
+            <li><span class="tag blue">Grep</span> 内容搜索</li>
+            <li><span class="tag blue">NotebookRead/Edit</span> Jupyter</li>
+          </ul>
+        </div>
+        <div>
+          <h4>系统操作</h4>
+          <ul>
+            <li><span class="tag purple">Bash</span> Shell 命令执行</li>
+            <li><span class="tag purple">WebFetch</span> 网页获取</li>
+            <li><span class="tag purple">WebSearch</span> 网络搜索</li>
+            <li><span class="tag purple">Computer</span> 桌面控制</li>
+          </ul>
+        </div>
+        <div>
+          <h4>Agent & 协作</h4>
+          <ul>
+            <li><span class="tag green">Agent</span> 子 Agent</li>
+            <li><span class="tag green">SendMessage</span> 消息传递</li>
+            <li><span class="tag green">TeamCreate/Delete</span></li>
+            <li><span class="tag green">TaskCreate/Get/List/Update</span></li>
+            <li><span class="tag green">TaskOutput/Stop</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="grid-3" style="margin-top:16px;">
+        <div>
+          <h4>交互控制</h4>
+          <ul>
+            <li><span class="tag orange">AskUserQuestion</span></li>
+            <li><span class="tag orange">EnterPlanMode</span></li>
+            <li><span class="tag orange">ExitPlanMode</span></li>
+            <li><span class="tag orange">EnterWorktree</span></li>
+            <li><span class="tag orange">ExitWorktree</span></li>
+          </ul>
+        </div>
+        <div>
+          <h4>调度 & 定时</h4>
+          <ul>
+            <li><span class="tag red">CronCreate</span></li>
+            <li><span class="tag red">CronDelete</span></li>
+            <li><span class="tag red">CronList</span></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Skill & UI</h4>
+          <ul>
+            <li><span class="tag blue">Skill</span> 调用技能</li>
+            <li><span class="tag blue">TodoWrite</span> 任务清单</li>
+            <li><span class="tag blue">Elicitation</span> 结构化输入</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Bash 工具安全机制</h3>
+        <p>BashTool 实现了多层安全防护，防止 Shell 注入攻击：</p>
+        <ul>
+          <li>阻止命令替换：<code>$()</code>、<code>${}</code>、<code>&lt;()</code>、<code>&gt;()</code></li>
+          <li>阻止 Zsh 特殊展开：<code>=()</code>、<code>$[]</code>、<code>~[]</code></li>
+          <li>危险 ZSH 命令黑名单：<code>zmodload</code>、<code>emulate</code>、<code>sysopen</code></li>
+          <li>后台任务支持（<code>run_in_background</code>）</li>
+          <li>超时控制（最大 600 秒）</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Edit 工具精确编辑</h3>
+        <p>Edit 工具采用精确字符串替换而非覆盖写入，具有以下特点：</p>
+        <ul>
+          <li>必须先用 Read 读取文件才能编辑</li>
+          <li>old_string 必须在文件中唯一匹配</li>
+          <li>支持 <code>replace_all</code> 全局替换</li>
+          <li>保留精确缩进（tab/space）</li>
+          <li>减少不必要的文件覆盖风险</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. 命令系统 -->
+  <div class="section" id="commands">
+    <div class="section-header">
+      <span class="section-icon">💬</span>
+      <span class="section-title">命令系统（80+ 斜杠命令）</span>
+    </div>
+    <div class="card">
+      <h3>命令分类</h3>
+      <table>
+        <tr><th>类别</th><th>代表命令</th><th>说明</th></tr>
+        <tr><td>会话管理</td><td>/clear, /compact, /resume</td><td>清除历史、压缩上下文、恢复会话</td></tr>
+        <tr><td>配置</td><td>/config, /model, /permissions</td><td>修改设置、切换模型、管理权限</td></tr>
+        <tr><td>MCP</td><td>/mcp, /mcp-list</td><td>MCP 服务器管理</td></tr>
+        <tr><td>Git 工作流</td><td>/commit, /pr, /review-pr</td><td>提交、PR 创建与审查</td></tr>
+        <tr><td>调试</td><td>/bug, /doctor</td><td>报告 Bug、诊断环境</td></tr>
+        <tr><td>帮助</td><td>/help, /tutorial</td><td>帮助文档、教程</td></tr>
+        <tr><td>技能</td><td>/skill-name</td><td>调用已安装的 Skills</td></tr>
+        <tr><td>记忆</td><td>/remember, /forget</td><td>持久化记忆管理</td></tr>
+        <tr><td>计划</td><td>/plan, /exit-plan</td><td>进入/退出计划模式</td></tr>
+        <tr><td>Vim</td><td>/vim</td><td>Vim 编辑模式</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>自定义命令</h3>
+      <p>用户可在以下位置创建自定义斜杠命令：</p>
+      <ul>
+        <li><code>~/.claude/commands/</code> — 用户级全局命令</li>
+        <li><code>.claude/commands/</code> — 项目级命令</li>
+        <li>命令文件为 Markdown 格式，frontmatter 定义元数据</li>
+        <li>支持参数传递和模板变量</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 6. Agent & 多智能体 -->
+  <div class="section" id="agents">
+    <div class="section-header">
+      <span class="section-icon">🤖</span>
+      <span class="section-title">Agent & 多智能体系统</span>
+    </div>
+    <div class="card">
+      <h3>内置 Agent 类型</h3>
+      <table>
+        <tr><th>Agent</th><th>说明</th><th>特性</th></tr>
+        <tr><td>general-purpose</td><td>通用 Agent</td><td>完整工具集，始终可用</td></tr>
+        <tr><td>statusline-setup</td><td>状态栏配置</td><td>仅 Read/Edit 工具</td></tr>
+        <tr><td>Explore</td><td>代码库探索</td><td>只读工具，快速探索</td></tr>
+        <tr><td>Plan</td><td>软件架构规划</td><td>只读 + 计划工具</td></tr>
+        <tr><td>claude-code-guide</td><td>Claude Code 使用指南</td><td>搜索 + 文档工具</td></tr>
+        <tr><td>superpowers:code-reviewer</td><td>代码审查</td><td>全工具集</td></tr>
+      </table>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Swarm 多 Agent 架构</h3>
+        <p>Claude Code 支持 Team/Swarm 模式，多个 Agent 并行协作：</p>
+        <h4>执行后端（3种）</h4>
+        <ul>
+          <li><strong>tmux</strong>：在 tmux 窗格中运行，视觉化</li>
+          <li><strong>iTerm2</strong>：使用 it2 CLI 原生分屏</li>
+          <li><strong>in-process</strong>：同 Node.js 进程，隔离上下文</li>
+        </ul>
+        <h4>Team 工作流</h4>
+        <div class="flow-item"><div class="flow-num">1</div><div class="flow-text">TeamCreate — 创建团队</div></div>
+        <div class="flow-item"><div class="flow-num">2</div><div class="flow-text">TaskCreate — 创建任务</div></div>
+        <div class="flow-item"><div class="flow-num">3</div><div class="flow-text">Agent — 派生队友</div></div>
+        <div class="flow-item"><div class="flow-num">4</div><div class="flow-text">TaskUpdate — 分配任务</div></div>
+        <div class="flow-item"><div class="flow-num">5</div><div class="flow-text">SendMessage — 通信</div></div>
+        <div class="flow-item"><div class="flow-num">6</div><div class="flow-text">SendMessage shutdown — 关闭</div></div>
+      </div>
+      <div class="card">
+        <h3>Agent 自定义</h3>
+        <p>用户可通过 Markdown 文件定义自定义 Agent：</p>
+        <div class="code">---
+name: my-agent
+description: 专注于测试的 Agent
+tools: Read, Write, Bash, Edit
+model: claude-opus-4-5
+systemPrompt: |
+  你是一个专注于测试的助手...
+systemPromptMode: append
+---
+
+Agent 的详细说明...</div>
+        <h4>Agent 记忆作用域</h4>
+        <ul>
+          <li><strong>user</strong>: <code>~/.claude/agent-memory/</code></li>
+          <li><strong>project</strong>: <code>.claude/agent-memory/</code></li>
+          <li><strong>local</strong>: <code>.claude/agent-memory-local/</code></li>
+        </ul>
+        <h4>Worktree 隔离</h4>
+        <p>Agent 可在独立 git worktree 中运行，实现代码隔离。</p>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Plan Mode（计划模式）</h3>
+      <p>Agent 支持 Plan Mode，要求在实施前获得用户批准：</p>
+      <ul>
+        <li>通过 <code>EnterPlanMode</code> 工具进入计划模式</li>
+        <li>通过 <code>ExitPlanMode</code> 提交计划等待审批</li>
+        <li>环境变量 <code>CLAUDE_CODE_PLAN_MODE_REQUIRED=true</code> 强制要求</li>
+        <li>防止 Agent 在未经审批的情况下直接修改代码</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 7. MCP 集成 -->
+  <div class="section" id="mcp">
+    <div class="section-header">
+      <span class="section-icon">🔌</span>
+      <span class="section-title">MCP（Model Context Protocol）集成</span>
+    </div>
+    <div class="card">
+      <h3>支持的传输协议</h3>
+      <table>
+        <tr><th>协议</th><th>说明</th><th>适用场景</th></tr>
+        <tr><td>stdio</td><td>标准输入输出</td><td>本地进程，最常用</td></tr>
+        <tr><td>sse</td><td>Server-Sent Events</td><td>远程 HTTP 服务器</td></tr>
+        <tr><td>sse-ide</td><td>IDE SSE 变体</td><td>IDE 扩展集成</td></tr>
+        <tr><td>http</td><td>HTTP 传输</td><td>REST API 服务器</td></tr>
+        <tr><td>ws</td><td>WebSocket</td><td>双向实时通信</td></tr>
+        <tr><td>sdk</td><td>SDK 直接集成</td><td>程序化接入</td></tr>
+      </table>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>配置作用域</h3>
+        <ul>
+          <li><strong>local</strong>: <code>.claude/settings.local.json</code></li>
+          <li><strong>user</strong>: <code>~/.claude/settings.json</code></li>
+          <li><strong>project</strong>: <code>.claude/settings.json</code></li>
+          <li><strong>dynamic</strong>: 运行时动态注册</li>
+          <li><strong>enterprise</strong>: 企业策略配置</li>
+          <li><strong>claudeai</strong>: claude.ai 托管服务</li>
+          <li><strong>managed</strong>: 托管 MCP 服务</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>OAuth 支持</h3>
+        <p>MCP 服务器支持 OAuth 2.0 认证：</p>
+        <ul>
+          <li>OAuth 授权 URL</li>
+          <li>Token 端点</li>
+          <li>客户端 ID/Secret</li>
+          <li>自动令牌刷新</li>
+          <li>安全凭证存储（Keychain）</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <h3>MCP 工具动态注册</h3>
+      <p>MCP 服务器可向 Claude Code 注册任意工具，这些工具会自动出现在 AI 的工具列表中，实现无限扩展：</p>
+      <div class="code">// MCP 服务器配置示例（settings.json）
+{
+  "mcpServers": {
+    "my-server": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/mcp-server.js"],
+      "env": { "API_KEY": "..." }
+    }
+  }
+}</div>
+    </div>
+  </div>
+
+  <!-- 8. Skills 系统 -->
+  <div class="section" id="skills">
+    <div class="section-header">
+      <span class="section-icon">✨</span>
+      <span class="section-title">Skills 技能系统</span>
+    </div>
+    <div class="card">
+      <h3>Skills 来源（3种）</h3>
+      <div class="grid-3">
+        <div>
+          <h4>内置 Skills</h4>
+          <p>随 Claude Code 预装，位于 <code>src/skills/bundled/</code></p>
+          <ul>
+            <li>batch — 批量操作</li>
+            <li>debug — 调试工作流</li>
+            <li>remember — 记忆管理</li>
+            <li>verify / verifyContent</li>
+            <li>loop — 循环任务</li>
+            <li>simplify — 代码简化</li>
+            <li>stuck — 解决卡顿</li>
+            <li>keybindings — 快捷键</li>
+            <li>scheduleRemoteAgents</li>
+          </ul>
+        </div>
+        <div>
+          <h4>Markdown Skills</h4>
+          <p>用户自定义，位于：</p>
+          <ul>
+            <li><code>~/.claude/skills/</code></li>
+            <li><code>.claude/skills/</code></li>
+          </ul>
+          <p>格式：带 frontmatter 的 Markdown 文件</p>
+        </div>
+        <div>
+          <h4>Plugin Skills</h4>
+          <p>通过插件系统安装，位于：</p>
+          <ul>
+            <li><code>~/.claude/plugins/</code></li>
+          </ul>
+          <p>支持 npm 包形式的插件</p>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Skill 调用方式</h3>
+      <ul>
+        <li>通过 <code>Skill</code> 工具：<code>skill: "debug"</code></li>
+        <li>通过斜杠命令：<code>/skill-name</code></li>
+        <li>Skills 内容在调用时动态加载，节省 context 空间</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 9. UI/UX -->
+  <div class="section" id="ui">
+    <div class="section-header">
+      <span class="section-icon">🎨</span>
+      <span class="section-title">UI/UX 设计</span>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>终端 UI 技术</h3>
+        <p>Claude Code 使用 <strong>React + Ink（自定义 fork）</strong>构建终端 UI，将 React 的组件化思想带入 CLI：</p>
+        <ul>
+          <li>函数组件 + React Hooks</li>
+          <li>流式渲染（Streaming）</li>
+          <li>代码语法高亮</li>
+          <li>Markdown 渲染</li>
+          <li>进度指示器</li>
+          <li>多 Agent 彩色标识</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>交互特性</h3>
+        <ul>
+          <li><strong>Vim 模式</strong>：完整 vi/vim 键绑定</li>
+          <li><strong>语音模式</strong>：语音输入支持</li>
+          <li><strong>图片输入</strong>：粘贴图片作为上下文</li>
+          <li><strong>AskUserQuestion</strong>：结构化选择题</li>
+          <li><strong>Elicitation</strong>：表单式结构化输入</li>
+          <li><strong>Plan Mode</strong>：计划审批工作流</li>
+          <li><strong>Worktree</strong>：Git worktree 可视化</li>
+          <li><strong>CronCreate</strong>：定时任务调度</li>
+        </ul>
+      </div>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <h3>Swarm 可视化</h3>
+        <p>tmux 后端支持多 Agent 可视化：</p>
+        <ul>
+          <li>分屏显示各 Agent 状态</li>
+          <li>彩色边框标识不同 Agent</li>
+          <li>窗格标题显示 Agent 名称</li>
+          <li>隐藏/显示窗格</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>状态栏</h3>
+        <p>可配置的状态栏显示：</p>
+        <ul>
+          <li>当前模型</li>
+          <li>Token 使用量</li>
+          <li>权限模式</li>
+          <li>Git 分支</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>通知系统</h3>
+        <p>支持多种通知方式：</p>
+        <ul>
+          <li>终端内联通知</li>
+          <li>macOS 系统通知</li>
+          <li>Hook 触发通知</li>
+          <li>Teammate 消息提醒</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10. 安全与权限 -->
+  <div class="section" id="security">
+    <div class="section-header">
+      <span class="section-icon">🔒</span>
+      <span class="section-title">安全与权限模型</span>
+    </div>
+    <div class="card">
+      <h3>权限模式（7种）</h3>
+      <table>
+        <tr><th>模式</th><th>说明</th><th>适用场景</th></tr>
+        <tr><td>default</td><td>默认模式，危险操作需确认</td><td>日常使用</td></tr>
+        <tr><td>acceptEdits</td><td>自动接受文件编辑</td><td>信任代码修改</td></tr>
+        <tr><td>bypassPermissions</td><td>绕过所有权限检查</td><td>CI/CD 自动化</td></tr>
+        <tr><td>dontAsk</td><td>不询问用户，自动决策</td><td>无人值守运行</td></tr>
+        <tr><td>plan</td><td>要求先制定计划</td><td>谨慎实施</td></tr>
+        <tr><td>auto</td><td>AI 分类器自动判断</td><td>智能自动化（feature flag）</td></tr>
+        <tr><td>bubble</td><td>权限冒泡到父 Agent</td><td>嵌套 Agent 场景</td></tr>
+      </table>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>权限规则系统</h3>
+        <p>细粒度的工具权限控制：</p>
+        <ul>
+          <li><strong>alwaysAllow</strong>：自动允许的工具</li>
+          <li><strong>alwaysDeny</strong>：始终拒绝的工具</li>
+          <li><strong>alwaysAsk</strong>：总是询问的工具</li>
+        </ul>
+        <h4>规则来源优先级</h4>
+        <ol>
+          <li>policySettings（企业策略）</li>
+          <li>cliArg（命令行参数）</li>
+          <li>localSettings（本地设置）</li>
+          <li>projectSettings（项目设置）</li>
+          <li>userSettings（用户设置）</li>
+          <li>session（会话临时）</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h3>Hook 系统</h3>
+        <p>Hook 在工具执行的各个阶段触发，可拦截和修改行为：</p>
+        <table>
+          <tr><th>Hook 事件</th><th>说明</th></tr>
+          <tr><td>PreToolUse</td><td>工具执行前</td></tr>
+          <tr><td>PostToolUse</td><td>工具执行后</td></tr>
+          <tr><td>PostToolUseFailure</td><td>工具失败后</td></tr>
+          <tr><td>UserPromptSubmit</td><td>用户提交时</td></tr>
+          <tr><td>SessionStart</td><td>会话开始</td></tr>
+          <tr><td>PermissionRequest</td><td>权限请求</td></tr>
+          <tr><td>PermissionDenied</td><td>权限拒绝</td></tr>
+          <tr><td>Notification</td><td>通知触发</td></tr>
+          <tr><td>FileChanged</td><td>文件变更</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h3>AI 分类器（Auto 模式）</h3>
+      <p>当启用 <code>TRANSCRIPT_CLASSIFIER</code> feature flag 时，auto 模式使用 AI 分类器自动判断操作安全性：</p>
+      <ul>
+        <li>两阶段分类：fast（快速）+ thinking（深度思考）</li>
+        <li>置信度评估：high / medium / low</li>
+        <li>可分类器批准的操作（敏感路径如 .claude/, .git/）</li>
+        <li>不可分类器批准的操作（Windows 路径绕过、跨机器桥接）</li>
+        <li>完整的 token 使用量跟踪</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 11. 工程实践 -->
+  <div class="section" id="engineering">
+    <div class="section-header">
+      <span class="section-icon">🛠️</span>
+      <span class="section-title">工程实践</span>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>TypeScript 配置</h3>
+        <ul>
+          <li><strong>strict: false</strong>（非严格模式）</li>
+          <li>target: ES2022</li>
+          <li>jsx: react-jsx</li>
+          <li>bundler: bun（模块解析）</li>
+          <li>paths 映射：bun:bundle stub</li>
+          <li>版本：TypeScript 6.0.2（最新）</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>代码质量工具</h3>
+        <ul>
+          <li><strong>Biome</strong>：Linting + Formatting</li>
+          <li><strong>Bun test</strong>：单元测试</li>
+          <li>懒加载（防循环依赖）</li>
+          <li>Zod v4 运行时类型验证</li>
+          <li>type-fest 高级类型工具</li>
+        </ul>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>持久化机制</h3>
+        <ul>
+          <li><strong>settings.json</strong>：用户/项目配置</li>
+          <li><strong>memory/</strong>：AI 记忆文件</li>
+          <li><strong>MEMORY.md</strong>：记忆索引</li>
+          <li><strong>agent-memory/</strong>：Agent 专属记忆</li>
+          <li><strong>Keychain</strong>：安全凭证存储</li>
+          <li><strong>scheduled_tasks.json</strong>：持久化定时任务</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>遥测 & 分析</h3>
+        <ul>
+          <li>GrowthBook 功能开关</li>
+          <li>MDM（企业设备管理）集成</li>
+          <li>API 使用量跟踪</li>
+          <li>分类器决策事件（tengu_auto_mode_decision）</li>
+          <li>Hook 执行指标（tengu_run_hook）</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <h3>特殊架构特性</h3>
+      <div class="grid-3">
+        <div>
+          <h4>Bridge 模式</h4>
+          <p>通过 WebSocket 或 HTTP 实现远程控制，支持跨机器 Agent 协作。</p>
+        </div>
+        <div>
+          <h4>Coordinator 模式</h4>
+          <p>通过 <code>COORDINATOR_MODE</code> feature flag 启用，用于多 Agent 协调调度。</p>
+        </div>
+        <div>
+          <h4>KAIROS 模式</h4>
+          <p>通过 <code>KAIROS</code> feature flag 启用，为特定场景提供专属 AI 助手行为。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 12. 优劣势 -->
+  <div class="section" id="pros-cons">
+    <div class="section-header">
+      <span class="section-icon">⚖️</span>
+      <span class="section-title">优劣势分析</span>
+    </div>
+    <div class="pros-cons">
+      <div class="pros">
+        <h3>✅ 优势</h3>
+        <ul>
+          <li><strong>工具体系完整</strong>：42+ 内置工具覆盖文件、Shell、Web、Agent 等全场景</li>
+          <li><strong>多 Agent 协作</strong>：原生支持 Swarm 模式，3 种后端（tmux/iTerm2/in-process）</li>
+          <li><strong>MCP 生态</strong>：开放的 MCP 协议支持，可接入任意外部工具</li>
+          <li><strong>Skills 可扩展</strong>：内置 + 自定义 + 插件三层 Skills 体系</li>
+          <li><strong>安全设计严谨</strong>：多层权限控制、Shell 注入防护、AI 分类器</li>
+          <li><strong>开发者体验好</strong>：Vim 模式、语法高亮、计划模式、Worktree 隔离</li>
+          <li><strong>技术栈现代</strong>：Bun + TypeScript 6 + React/Ink，性能优秀</li>
+          <li><strong>Feature Flag 架构</strong>：编译时死代码消除，运行时 A/B 测试</li>
+          <li><strong>Hook 系统强大</strong>：9+ 钩子事件，可深度定制行为</li>
+          <li><strong>持久化记忆</strong>：跨会话 AI 记忆，Agent 专属记忆作用域</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h3>❌ 劣势 / 局限</h3>
+        <ul>
+          <li><strong>非开源</strong>：本报告基于反编译源码，官方未开放源代码</li>
+          <li><strong>TypeScript strict: false</strong>：非严格模式，潜在类型安全隐患</li>
+          <li><strong>Bun 依赖</strong>：依赖 Bun 特有 API（bun:bundle），迁移成本高</li>
+          <li><strong>Agent 工具限制</strong>：部分 Agent 类型（如 Explore）工具集受限，易导致 400 错误</li>
+          <li><strong>单文件过大</strong>：REPL.tsx 达 5005 行，维护难度高</li>
+          <li><strong>Feature Flag 不透明</strong>：部分功能通过 flag 隐藏，用户无法访问</li>
+          <li><strong>上下文窗口限制</strong>：长会话需要手动 /compact，影响连续性</li>
+          <li><strong>跨平台差异</strong>：tmux/iTerm2 后端仅限特定平台</li>
+          <li><strong>学习曲线</strong>：功能众多，新用户上手成本较高</li>
+          <li><strong>网络依赖</strong>：核心功能依赖 Anthropic API，离线不可用</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 24px;">
+      <h3>总结评价</h3>
+      <div class="highlight">
+        Claude Code v2.1.88 是目前市场上功能最完整的 AI 编程助手之一。它不仅仅是一个代码生成工具，而是一个完整的 <strong>Agentic Software Engineering Platform</strong>。其多 Agent 协作、MCP 生态、Skills 扩展体系和严谨的安全设计，使其在复杂软件工程任务上具有显著优势。
+      </div>
+      <p style="margin-top: 12px; color: #a0aec0;">主要竞争优势在于：原生多 Agent 协作能力、开放的 MCP 工具生态、以及将 AI 能力与实际开发工作流（Git、测试、CI/CD）深度融合的设计理念。主要改进空间在于：开源透明度、TypeScript 严格模式采用、以及降低新用户的学习门槛。</p>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>Claude Code v2.1.88 深度技术分析报告</p>
+  <p style="margin-top: 8px;">基于反编译源码分析 · 仅供研究参考 · 生成于 2026-04-15</p>
+</footer>
+
+</body>
+</html>

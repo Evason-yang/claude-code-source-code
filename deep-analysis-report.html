@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code 深度技术分析报告</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --border: #2e3350;
+  --text: #e2e8f0;
+  --text-muted: #8892a4;
+  --query: #7c6af7;
+  --tool: #f7a76c;
+  --perm: #f76c8a;
+  --config: #6cb8f7;
+  --mcp: #56cfb2;
+  --skill: #f7d56c;
+  --ui: #56d4e8;
+  --code-bg: #111420;
+  --inline-code-bg: #1e2235;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  padding-top: 60px;
+}
+/* NAV */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: #0d101a;
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  height: 60px;
+  overflow-x: auto;
+  white-space: nowrap;
+  gap: 4px;
+}
+nav .brand {
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+nav a {
+  text-decoration: none;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+nav a:hover { background: var(--surface); }
+.nav-1 { color: var(--query); }
+.nav-2 { color: var(--tool); }
+.nav-3 { color: var(--skill); }
+.nav-4 { color: var(--perm); }
+.nav-5 { color: var(--config); }
+.nav-6 { color: var(--mcp); }
+.nav-7 { color: var(--ui); }
+/* LAYOUT */
+.container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+/* HERO */
+.hero {
+  text-align: center;
+  padding: 60px 20px 50px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 56px;
+}
+.hero h1 { font-size: 2.4rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; }
+.hero .subtitle { color: var(--text-muted); font-size: 1rem; }
+.hero .meta { margin-top: 20px; display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+.badge {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+/* SECTIONS */
+.section {
+  margin-bottom: 64px;
+  scroll-margin-top: 72px;
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.section-num {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.section-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+/* SUBSECTION */
+.subsection {
+  margin-bottom: 36px;
+}
+.subsection h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  padding-left: 12px;
+}
+/* BORDER COLORS PER SECTION */
+.sec-1 .subsection h3 { border-left: 3px solid var(--query); }
+.sec-2 .subsection h3 { border-left: 3px solid var(--tool); }
+.sec-3 .subsection h3 { border-left: 3px solid var(--skill); }
+.sec-4 .subsection h3 { border-left: 3px solid var(--perm); }
+.sec-5 .subsection h3 { border-left: 3px solid var(--config); }
+.sec-6 .subsection h3 { border-left: 3px solid var(--mcp); }
+.sec-7 .subsection h3 { border-left: 3px solid var(--ui); }
+.sec-1 { border-left: 4px solid var(--query); padding-left: 20px; }
+.sec-2 { border-left: 4px solid var(--tool); padding-left: 20px; }
+.sec-3 { border-left: 4px solid var(--skill); padding-left: 20px; }
+.sec-4 { border-left: 4px solid var(--perm); padding-left: 20px; }
+.sec-5 { border-left: 4px solid var(--config); padding-left: 20px; }
+.sec-6 { border-left: 4px solid var(--mcp); padding-left: 20px; }
+.sec-7 { border-left: 4px solid var(--ui); padding-left: 20px; }
+/* CODE */
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  overflow-x: auto;
+  font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 12px 0;
+}
+code {
+  font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 13px;
+  background: var(--inline-code-bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #e2c4ff;
+}
+pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+/* SYNTAX HIGHLIGHT (manual) */
+.kw { color: #c792ea; font-weight: 600; }
+.ty { color: #80d8c4; }
+.str { color: #c3e88d; }
+.num { color: #f78c6c; }
+.cm { color: #546e7a; font-style: italic; }
+.fn { color: #82aaff; }
+.op { color: #89ddff; }
+.pt { color: #f07178; }
+/* TABLE */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 14px;
+}
+th {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+td {
+  border: 1px solid var(--border);
+  padding: 10px 14px;
+  vertical-align: top;
+}
+tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+/* ORDERED LIST */
+ol, ul { padding-left: 24px; margin: 12px 0; }
+li { margin-bottom: 6px; }
+/* CARD */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 16px 0;
+}
+.card-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+/* DIVIDER */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 48px 0;
+}
+/* FOOTER */
+footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 40px 20px;
+  border-top: 1px solid var(--border);
+}
+/* COLOR SPANS */
+.c-query { color: var(--query); }
+.c-tool { color: var(--tool); }
+.c-perm { color: var(--perm); }
+.c-config { color: var(--config); }
+.c-mcp { color: var(--mcp); }
+.c-skill { color: var(--skill); }
+.c-ui { color: var(--ui); }
+/* FLOW */
+.flow-box {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin: 12px 0;
+  overflow-x: auto;
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="brand">Claude Code 深度分析</span>
+  <a href="#ch1" class="nav-1">Ch1 Query Engine</a>
+  <a href="#ch2" class="nav-2">Ch2 工具系统</a>
+  <a href="#ch3" class="nav-3">Ch3 Skill 系统</a>
+  <a href="#ch4" class="nav-4">Ch4 权限 &amp; Hook</a>
+  <a href="#ch5" class="nav-5">Ch5 配置 &amp; 内存</a>
+  <a href="#ch6" class="nav-6">Ch6 MCP &amp; 多代理</a>
+  <a href="#ch7" class="nav-7">Ch7 终端 UI &amp; Bridge</a>
+  <a href="#arch" class="nav-6">模块关系图</a>
+</nav>
+
+<div class="container">
+
+<div class="hero">
+  <h1>Claude Code 深度技术分析报告</h1>
+  <p class="subtitle">基于源码的完整系统架构解析 — Query Engine · 工具系统 · Skill · 权限 · 配置 · MCP · UI</p>
+  <div class="meta">
+    <span class="badge">生成时间：2026-04-15</span>
+    <span class="badge">分析范围：src/ 完整源码</span>
+    <span class="badge">章节数：7</span>
+    <span class="badge">Claude Code 技术深度报告</span>
+  </div>
+</div>
+
+<!-- ===== CHAPTER 1 ===== -->
+<section class="section sec-1" id="ch1">
+  <div class="section-header">
+    <span class="section-num c-query">Chapter 01</span>
+    <h2 class="section-title c-query">Query Engine 与对话循环</h2>
+  </div>
+
+  <div class="subsection">
+    <h3>核心数据结构</h3>
+    <pre><code><span class="cm">// query.ts:204 - 循环状态</span>
+<span class="kw">type</span> <span class="ty">State</span> = {
+  messages: <span class="ty">Message</span>[]
+  toolUseContext: <span class="ty">ToolUseContext</span>
+  autoCompactTracking: <span class="ty">AutoCompactTrackingState</span> | <span class="kw">undefined</span>
+  maxOutputTokensRecoveryCount: <span class="ty">number</span>
+  hasAttemptedReactiveCompact: <span class="ty">boolean</span>
+  maxOutputTokensOverride: <span class="ty">number</span> | <span class="kw">undefined</span>
+  stopHookActive: <span class="ty">boolean</span> | <span class="kw">undefined</span>
+  turnCount: <span class="ty">number</span>
+  transition: <span class="ty">Continue</span> | <span class="kw">undefined</span>  <span class="cm">// 上一次迭代的转换原因</span>
+}
+
+<span class="cm">// 7种转换类型（Continue reason）</span>
+<span class="kw">type</span> <span class="ty">ContinueReason</span> =
+  | <span class="str">'collapse_drain_retry'</span>       <span class="cm">// 上下文坍缩后恢复</span>
+  | <span class="str">'reactive_compact_retry'</span>     <span class="cm">// 反应式压缩后恢复</span>
+  | <span class="str">'max_output_tokens_escalate'</span> <span class="cm">// 输出令牌升级</span>
+  | <span class="str">'max_output_tokens_recovery'</span> <span class="cm">// 输出令牌恢复</span>
+  | <span class="str">'stop_hook_blocking'</span>         <span class="cm">// 停止钩子阻塞</span>
+  | <span class="str">'token_budget_continuation'</span>  <span class="cm">// 令牌预算继续</span>
+  | <span class="str">'next_turn'</span>                  <span class="cm">// 正常工具执行后</span>
+
+<span class="cm">// 9种退出原因（Terminal）</span>
+<span class="kw">type</span> <span class="ty">TerminalReason</span> =
+  | <span class="str">'completed'</span>         <span class="cm">// 正常完成</span>
+  | <span class="str">'prompt_too_long'</span>   <span class="cm">// 提示过长无法恢复</span>
+  | <span class="str">'image_error'</span>       <span class="cm">// 图像大小错误</span>
+  | <span class="str">'aborted_streaming'</span> <span class="cm">// 流式处理中被中止</span>
+  | <span class="str">'aborted_tools'</span>     <span class="cm">// 工具执行中被中止</span>
+  | <span class="str">'hook_stopped'</span>      <span class="cm">// 钩子停止</span>
+  | <span class="str">'max_turns'</span>         <span class="cm">// 达到最大轮数</span>
+  | <span class="str">'model_error'</span>       <span class="cm">// 模型错误</span>
+  | <span class="str">'blocking_limit'</span>    <span class="cm">// 达到硬限制</span></code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>主入口函数签名</h3>
+    <pre><code><span class="cm">// 主循环</span>
+<span class="kw">export</span> <span class="kw">async</span> <span class="kw">function</span>* <span class="fn">query</span>(params: <span class="ty">QueryParams</span>): <span class="ty">AsyncGenerator</span>&lt;
+  <span class="ty">StreamEvent</span> | <span class="ty">RequestStartEvent</span> | <span class="ty">Message</span> | <span class="ty">TombstoneMessage</span> | <span class="ty">ToolUseSummaryMessage</span>,
+  <span class="ty">Terminal</span>
+&gt;
+
+<span class="cm">// QueryEngine 类（供 REPL 调用）</span>
+<span class="kw">class</span> <span class="ty">QueryEngine</span> {
+  <span class="kw">async</span> *<span class="fn">submitMessage</span>(prompt, options?): <span class="ty">AsyncGenerator</span>&lt;<span class="ty">SDKMessage</span>&gt;
+  <span class="fn">interrupt</span>(): <span class="kw">void</span>
+  <span class="fn">getMessages</span>(): <span class="kw">readonly</span> <span class="ty">Message</span>[]
+  <span class="fn">setModel</span>(model: <span class="ty">string</span>): <span class="kw">void</span>
+}</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>System Prompt 5层组成（QueryEngine.ts:284）</h3>
+    <ol>
+      <li><code>defaultSystemPrompt</code> ← <code>fetchSystemPromptParts()</code> → <code>getSystemPrompt()</code>（工具描述、权限模式说明）</li>
+      <li><code>memoryMechanicsPrompt</code> ← <code>loadMemoryPrompt()</code>（条件：customPrompt &amp;&amp; hasAutoMemPathOverride()，告知模型如何维护 MEMORY.md）</li>
+      <li><code>appendSystemPrompt</code> ← SDK/CLI 额外注入</li>
+      <li><code>userContext</code> ← <code>prependUserContext()</code>（工作目录、时间戳、用户信息，每轮请求前置）</li>
+      <li><code>systemContext</code> ← <code>appendSystemContext()</code>（压缩时保留的系统上下文）</li>
+    </ol>
+  </div>
+
+  <div class="subsection">
+    <h3>消息历史裁剪 6层管道（query.ts:365）</h3>
+    <pre><code>messagesForQuery
+  ↓ [1] <span class="fn">getMessagesAfterCompactBoundary</span>()
+        获取上次压缩边界后的消息
+  ↓ [2] <span class="fn">applyToolResultBudget</span>()
+        限制单条工具结果大小，超限持久化到磁盘
+  ↓ [3] <span class="fn">snipCompactIfNeeded</span>()   <span class="cm">[feature: HISTORY_SNIP]</span>
+        历史片段压缩
+  ↓ [4] <span class="fn">microcompact</span>()
+        缓存编辑微压缩
+  ↓ [5] <span class="fn">contextCollapse.applyCollapsesIfNeeded</span>()  <span class="cm">[feature: CONTEXT_COLLAPSE]</span>
+        上下文坍缩
+  ↓ [6] <span class="fn">autocompact</span>()
+        超限时调用 Claude 生成摘要消息替换历史
+  ↓ <span class="fn">calculateTokenWarningState</span>()
+        硬限制检查 → blocking_limit 退出</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>流式响应事件处理</h3>
+    <pre><code>API Stream Events 处理顺序：
+  <span class="c-query">message_start</span>       → 重置 currentMessageUsage，初始化输入令牌
+  <span class="c-query">content_block_start</span> → 开始新内容块
+  <span class="c-query">content_block_delta</span> → 增量内容
+    ├─ text block     → 直接 yield 给用户
+    ├─ tool_use block → 收集到 toolUseBlocks[]，设 needsFollowUp=true
+    └─ thinking block → Extended Thinking，必须保留在历史中
+  <span class="c-query">content_block_stop</span>  → 块结束
+  <span class="c-query">message_delta</span>       → 更新 usage，捕获 stop_reason（仅此处可用！）
+  <span class="c-query">message_stop</span>        → 累积 totalUsage</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>工具执行完整流程</h3>
+    <pre><code>toolUseBlocks[]
+  ↓ <span class="fn">partitionToolCalls</span>()
+    按 isConcurrencySafe 分组为 Batch[]
+    [只读工具批] → <span class="fn">runToolsConcurrently</span>()  <span class="cm">// 并行</span>
+    [写入工具]   → <span class="fn">runToolsSerially</span>()      <span class="cm">// 串行</span>
+
+  每个工具：
+  ↓ <span class="fn">findToolByName</span>()           查找工具定义
+  ↓ <span class="fn">inputSchema.safeParse</span>()    Zod 输入验证
+  ↓ <span class="fn">canUseTool</span>()               权限检查（→ 权限模块）
+  ↓ <span class="fn">tool.call</span>()                执行
+  ↓ <span class="fn">onProgress</span>()               进度上报
+  ↓ <span class="fn">normalizeMessagesForAPI</span>()  转换为 API 格式
+  ↓ <span class="fn">toolResults.push</span>()         注入消息历史
+  ↓ 继续下一轮（needsFollowUp=true）</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>错误恢复机制</h3>
+    <div class="card">
+      <ul>
+        <li><code>FallbackTriggeredError</code> → 切换 fallbackModel + <code>stripSignatureBlocks()</code> 剥离 thinking 签名 + 重试</li>
+        <li><code>ImageSizeError</code> → <code>Terminal{reason:'image_error'}</code></li>
+        <li>API 通用错误 → <code>yieldMissingToolResultBlocks()</code> + <code>createAssistantAPIErrorMessage()</code></li>
+        <li>用户中止 → 消费剩余结果 + <code>createUserInterruptionMessage()</code> + <code>Terminal{reason:'aborted_tools'}</code></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ===== CHAPTER 2 ===== -->
+<section class="section sec-2" id="ch2">
+  <div class="section-header">
+    <span class="section-num c-tool">Chapter 02</span>
+    <h2 class="section-title c-tool">工具系统（Tool System）</h2>
+  </div>
+
+  <div class="subsection">
+    <h3>Tool 接口完整定义（src/Tool.ts:362）</h3>
+    <pre><code><span class="kw">type</span> <span class="ty">Tool</span>&lt;Input, Output, P <span class="kw">extends</span> <span class="ty">ToolProgressData</span>&gt; = {
+  name: <span class="ty">string</span>
+  aliases?: <span class="ty">string</span>[]
+  searchHint?: <span class="ty">string</span>           <span class="cm">// ToolSearch 关键词匹配提示</span>
+  shouldDefer?: <span class="ty">boolean</span>         <span class="cm">// true=延迟加载，需 ToolSearch 才能调用</span>
+  alwaysLoad?: <span class="ty">boolean</span>          <span class="cm">// true=永不延迟，初始 prompt 就包含完整 schema</span>
+  isMcp?: <span class="ty">boolean</span>               <span class="cm">// MCP 工具标志（默认延迟加载）</span>
+
+  <span class="cm">// 核心执行</span>
+  <span class="fn">call</span>(args, context, canUseTool, parentMessage, onProgress?): <span class="ty">Promise</span>&lt;<span class="ty">ToolResult</span>&lt;Output&gt;&gt;
+  <span class="fn">description</span>(input, options): <span class="ty">Promise</span>&lt;<span class="ty">string</span>&gt;
+  <span class="fn">prompt</span>(options): <span class="ty">Promise</span>&lt;<span class="ty">string</span>&gt;
+
+  <span class="cm">// Schema</span>
+  <span class="kw">readonly</span> inputSchema: <span class="ty">ZodSchema</span>&lt;Input&gt;
+  outputSchema?: <span class="ty">z.ZodType</span>&lt;<span class="kw">unknown</span>&gt;
+
+  <span class="cm">// 能力标志（影响并发策略和权限）</span>
+  <span class="fn">isConcurrencySafe</span>(input): <span class="ty">boolean</span>   <span class="cm">// false=串行执行</span>
+  <span class="fn">isReadOnly</span>(input): <span class="ty">boolean</span>
+  <span class="fn">isDestructive</span>(input): <span class="ty">boolean</span>
+  <span class="fn">isEnabled</span>(): <span class="ty">boolean</span>
+
+  <span class="cm">// 权限与验证（两阶段）</span>
+  <span class="fn">validateInput</span>(input, context): <span class="ty">Promise</span>&lt;<span class="ty">ValidationResult</span>&gt;   <span class="cm">// 纯数据验证，无 I/O</span>
+  <span class="fn">checkPermissions</span>(input, context): <span class="ty">Promise</span>&lt;<span class="ty">PermissionDecision</span>&gt;  <span class="cm">// 权限检查，可修改 input</span>
+
+  <span class="cm">// UI 渲染（完全由工具自定义）</span>
+  <span class="fn">renderToolUseMessage</span>(input, options): <span class="ty">React.ReactNode</span>
+  <span class="fn">renderToolResultMessage</span>(content, progressMessages, options): <span class="ty">React.ReactNode</span>
+  <span class="fn">renderToolUseProgressMessage</span>(progressMessages, options): <span class="ty">React.ReactNode</span>
+  <span class="fn">renderToolUseErrorMessage</span>(result, options): <span class="ty">React.ReactNode</span>
+
+  maxResultSizeChars: <span class="ty">number</span>    <span class="cm">// 超过则持久化到磁盘，返回路径</span>
+  <span class="fn">interruptBehavior</span>(): <span class="str">'cancel'</span> | <span class="str">'block'</span>
+  <span class="fn">requiresUserInteraction</span>(): <span class="ty">boolean</span>
+}
+
+<span class="cm">// 结果类型</span>
+<span class="kw">type</span> <span class="ty">ToolResult</span>&lt;T&gt; = {
+  data: T
+  newMessages?: <span class="ty">Message</span>[]       <span class="cm">// 注入新消息（如 skill 展开内容）</span>
+  contextModifier?: (ctx: <span class="ty">ToolUseContext</span>) =&gt; <span class="ty">ToolUseContext</span>  <span class="cm">// 修改后续上下文</span>
+  mcpMeta?: { _meta?; structuredContent? }
+}
+
+<span class="cm">// 进度类型</span>
+<span class="kw">type</span> <span class="ty">ToolProgressData</span> =
+  | <span class="ty">BashProgress</span>        <span class="cm">// { type:'bash_progress', stdout, stderr, isRunning, startedAt }</span>
+  | <span class="ty">AgentToolProgress</span>   <span class="cm">// { type:'agent_progress', message, agentId }</span>
+  | <span class="ty">MCPProgress</span>
+  | <span class="ty">WebSearchProgress</span>
+  | <span class="ty">HookProgress</span>
+  | <span class="ty">SkillToolProgress</span>   <span class="cm">// { type:'skill_progress', message, prompt, agentId }</span></code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>工具加载机制（src/tools.ts:193）— getAllBaseTools() 三类加载方式</h3>
+    <pre><code><span class="cm">// 1. 静态 import（始终加载）</span>
+<span class="ty">AgentTool</span>, <span class="ty">SkillTool</span>, <span class="ty">BashTool</span>, <span class="ty">FileReadTool</span>, <span class="ty">FileEditTool</span>,
+<span class="ty">FileWriteTool</span>, <span class="ty">GlobTool</span>, <span class="ty">GrepTool</span>, <span class="ty">WebFetchTool</span>, <span class="ty">WebSearchTool</span>,
+<span class="ty">TodoWriteTool</span>, <span class="ty">ExitPlanModeV2Tool</span>, <span class="ty">AskUserQuestionTool</span>, ...
+
+<span class="cm">// 2. process.env 条件（运行时判断）</span>
+process.env.USER_TYPE === <span class="str">'ant'</span>           → <span class="ty">ConfigTool</span>, <span class="ty">TungstenTool</span>, <span class="ty">REPLTool</span>
+process.env.ENABLE_LSP_TOOL              → <span class="ty">LSPTool</span>
+process.env.CLAUDE_CODE_VERIFY_PLAN      → <span class="ty">VerifyPlanExecutionTool</span>
+
+<span class="cm">// 3. feature() 宏（编译时 dead code elimination）</span>
+<span class="fn">feature</span>(<span class="str">'AGENT_TRIGGERS'</span>)    → <span class="ty">CronCreateTool</span>, <span class="ty">CronDeleteTool</span>, <span class="ty">CronListTool</span>
+<span class="fn">feature</span>(<span class="str">'WORKFLOW_SCRIPTS'</span>)  → <span class="ty">WorkflowTool</span>
+<span class="fn">feature</span>(<span class="str">'TERMINAL_PANEL'</span>)    → <span class="ty">TerminalCaptureTool</span>
+<span class="fn">feature</span>(<span class="str">'WEB_BROWSER_TOOL'</span>)  → <span class="ty">WebBrowserTool</span>
+<span class="fn">feature</span>(<span class="str">'HISTORY_SNIP'</span>)      → <span class="ty">SnipTool</span>
+<span class="fn">feature</span>(<span class="str">'CONTEXT_COLLAPSE'</span>)  → <span class="ty">CtxInspectTool</span>
+
+<span class="cm">// 4. 运行时函数（每次调用重新判断）</span>
+<span class="fn">isTodoV2Enabled</span>()         → <span class="ty">TaskCreate</span>/<span class="ty">Get</span>/<span class="ty">Update</span>/<span class="ty">ListTool</span>
+<span class="fn">isAgentSwarmsEnabled</span>()    → <span class="ty">TeamCreateTool</span>, <span class="ty">TeamDeleteTool</span>
+<span class="fn">isWorktreeModeEnabled</span>()   → <span class="ty">EnterWorktreeTool</span>, <span class="ty">ExitWorktreeTool</span>
+<span class="fn">hasEmbeddedSearchTools</span>()  → 跳过 GlobTool/GrepTool（ant 内嵌更快版本）
+
+<span class="cm">// 5. 懒加载（防循环依赖）</span>
+<span class="kw">const</span> <span class="fn">getTeamCreateTool</span> = () =&gt; <span class="fn">require</span>(<span class="str">'./tools/TeamCreateTool/...'</span>).TeamCreateTool</code></pre>
+
+    <h3>assembleToolPool() — 最终工具池</h3>
+    <pre><code><span class="fn">assembleToolPool</span>(permissionContext, mcpTools): <span class="ty">Tools</span> {
+  <span class="kw">const</span> builtIn = <span class="fn">getTools</span>(permissionContext)           <span class="cm">// 内置工具</span>
+  <span class="kw">const</span> mcp = <span class="fn">filterToolsByDenyRules</span>(mcpTools, ...)     <span class="cm">// MCP 工具</span>
+  <span class="kw">return</span> <span class="fn">uniqBy</span>(
+    [...builtIn].<span class="fn">sort</span>(byName).<span class="fn">concat</span>(mcp.<span class="fn">sort</span>(byName)), <span class="cm">// 按名排序！保证 system prompt 缓存稳定</span>
+    <span class="str">'name'</span>
+  )
+}</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>渐进式工具加载（Tool Search / Deferred Tools）</h3>
+    <pre><code>立即加载（full schema 进 system prompt）：
+  - 所有内置工具（BashTool、FileReadTool 等）
+  - alwaysLoad: true 的 MCP 工具（通过 _meta[<span class="str">'anthropic/alwaysLoad'</span>]）
+  - ToolSearchTool 本身
+  - AgentTool（feature FORK_SUBAGENT 时）
+
+延迟加载（deferred，只告知名字，不给 schema）：
+  - 所有 MCP 工具（isMcp: true → isDeferredTool() = true）
+  - shouldDefer: true 的内置工具</code></pre>
+
+    <h3>isDeferredTool() 判断逻辑（ToolSearchTool/prompt.ts:62）</h3>
+    <pre><code><span class="kw">function</span> <span class="fn">isDeferredTool</span>(tool: <span class="ty">Tool</span>): <span class="ty">boolean</span> {
+  <span class="kw">if</span> (tool.alwaysLoad === <span class="kw">true</span>) <span class="kw">return</span> <span class="kw">false</span>     <span class="cm">// 显式 opt-out</span>
+  <span class="kw">if</span> (tool.isMcp === <span class="kw">true</span>) <span class="kw">return</span> <span class="kw">true</span>           <span class="cm">// MCP 工具始终延迟</span>
+  <span class="kw">if</span> (tool.name === TOOL_SEARCH_TOOL_NAME) <span class="kw">return</span> <span class="kw">false</span>  <span class="cm">// ToolSearch 本身不延迟</span>
+  <span class="kw">if</span> (<span class="fn">feature</span>(<span class="str">'FORK_SUBAGENT'</span>) &amp;&amp; tool.name === AGENT_TOOL_NAME) <span class="kw">return</span> <span class="kw">false</span>
+  <span class="kw">return</span> tool.shouldDefer === <span class="kw">true</span>
+}</code></pre>
+
+    <h3>ToolSearchMode（toolSearch.ts:172）</h3>
+    <pre><code>ENABLE_TOOL_SEARCH 未设置  → <span class="str">'tst'</span>（默认：MCP 工具全部延迟）
+ENABLE_TOOL_SEARCH=auto    → <span class="str">'tst-auto'</span>（超过 context 10% 才延迟）
+ENABLE_TOOL_SEARCH=false   → <span class="str">'standard'</span>（全部一次性加载）
+
+auto 模式阈值：
+  <span class="fn">getAutoToolSearchTokenThreshold</span>(model) = contextWindow × 10%
+  例：200K 窗口 → 阈值 20,000 tokens</code></pre>
+
+    <h3>渐进式加载流程</h3>
+    <pre><code>第1轮 system prompt：
+  ├─ 内置工具（完整 schema）
+  ├─ ToolSearchTool（完整 schema）
+  └─ &lt;available-deferred-tools&gt; 或 &lt;system-reminder&gt;：
+       只有工具名，无 schema
+       e.g. <span class="str">"mcp__github__create_issue"</span>
+            <span class="str">"mcp__slack__send_message"</span>
+
+模型需要某个 deferred 工具时：
+  → 调用 <span class="fn">ToolSearchTool</span>({ query: <span class="str">"select:mcp__github__create_issue"</span> })
+  → 返回完整 JSONSchema（&lt;functions&gt; 块）
+  → 之后可以正常调用
+
+已 fetch 的工具通过 tool_reference 机制在对话历史中复用</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>核心工具实现细节 — FileReadTool</h3>
+    <pre><code><span class="cm">// 输入</span>
+{ file_path: <span class="ty">string</span>; offset?: <span class="ty">number</span>; limit?: <span class="ty">number</span>; pages?: <span class="ty">string</span> }
+
+<span class="cm">// 输出（判别联合）</span>
+| { type: <span class="str">'text'</span>;         file: { filePath, content, numLines, startLine, totalLines } }
+| { type: <span class="str">'image'</span>;        file: { base64, type, originalSize, dimensions } }
+| { type: <span class="str">'notebook'</span>;     file: { filePath, cells } }
+| { type: <span class="str">'pdf'</span>;          file: { filePath, base64, originalSize } }
+| { type: <span class="str">'file_unchanged'</span>; file: { filePath } }  <span class="cm">// readFileState 缓存命中</span>
+
+<span class="cm">// 关键实现</span>
+- <span class="fn">readFileInRange</span>() 流式读取，避免 OOM
+- <span class="fn">maybeResizeAndDownsampleImageBuffer</span>() 令牌预算压缩
+- readFileState 缓存：文件未改变返回 FILE_UNCHANGED_STUB（节省 token）
+- maxSizeBytes=10MB，maxTokens=200K
+- isConcurrencySafe=true（只读）</code></pre>
+
+    <h3>核心工具实现细节 — FileEditTool</h3>
+    <pre><code><span class="cm">// 输入</span>
+{ file_path: <span class="ty">string</span>; old_string: <span class="ty">string</span>; new_string: <span class="ty">string</span>; replace_all?: <span class="ty">boolean</span> }
+
+<span class="cm">// 12步验证流程</span>
+<span class="num">1</span>. old_string === new_string → 拒绝
+<span class="num">2</span>. 检查拒绝列表
+<span class="num">3</span>. 检查 UNC 路径（防 NTLM 凭证泄露）
+<span class="num">4</span>. 文件大小 &lt; 1GB
+<span class="num">5</span>. 读取文件，检测编码（UTF-16 LE BOM / UTF-8）
+<span class="num">6</span>. 文件不存在 → 仅 old_string='' 时允许（新建文件）
+<span class="num">7</span>. 文件存在且 old_string='' → 仅文件为空时允许
+<span class="num">8</span>. 检查是否 .ipynb（改用 NotebookEditTool）
+<span class="num">9</span>. 检查文件已被读取（readFileState）
+<span class="num">10</span>. mtime 未改变（Windows 降级为内容对比）
+<span class="num">11</span>. <span class="fn">findActualString</span>() 查找匹配（处理引号规范化）
+<span class="num">12</span>. 多匹配且 replace_all=false → 拒绝
+
+<span class="cm">// 原子性：read-modify-write 在 critical section</span>
+<span class="cm">// LSP 通知：didChange + didSave</span>
+<span class="cm">// isConcurrencySafe=false（写入操作）</span></code></pre>
+
+    <h3>核心工具实现细节 — BashTool</h3>
+    <pre><code><span class="cm">// 输入</span>
+{ command: <span class="ty">string</span>; timeout?: <span class="ty">number</span>; description?: <span class="ty">string</span>;
+  run_in_background?: <span class="ty">boolean</span>; dangerouslyDisableSandbox?: <span class="ty">boolean</span> }
+
+<span class="cm">// 输出</span>
+{ stdout, stderr, interrupted, backgroundTaskId?,
+  persistedOutputPath?, persistedOutputSize? }
+
+<span class="cm">// 关键实现</span>
+- <span class="ty">SandboxManager</span> 命令隔离
+- ASSISTANT_BLOCKING_BUDGET_MS=15s：超时自动后台化
+- 命令类型检测：BASH_SEARCH_COMMANDS(find/grep/rg) → isSearch=true → UI 折叠
+- 输出超 PREVIEW_SIZE_BYTES → 持久化到磁盘
+- isConcurrencySafe=false（共享 cwd）</code></pre>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ===== CHAPTER 3 ===== -->
+<section class="section sec-3" id="ch3">
+  <div class="section-header">
+    <span class="section-num c-skill">Chapter 03</span>
+    <h2 class="section-title c-skill">Skill 系统（渐进式加载）</h2>
+  </div>
+
+  <div class="subsection">
+    <h3>Skill vs Tool 本质区别</h3>
+    <table>
+      <tr><th></th><th>Tool</th><th>Skill</th></tr>
+      <tr><td>定义方式</td><td>TypeScript 代码（实现 Tool 接口）</td><td>Markdown 文件（YAML frontmatter + 提示词）</td></tr>
+      <tr><td>加载时机</td><td>启动时静态注册</td><td>getCommands() 从磁盘/插件/MCP 加载</td></tr>
+      <tr><td>执行方式</td><td>tool.call() 直接执行</td><td>SkillTool 展开为提示词注入对话</td></tr>
+      <tr><td>执行模式</td><td>单步执行</td><td>inline（注入 newMessages）或 fork（启动子代理）</td></tr>
+    </table>
+  </div>
+
+  <div class="subsection">
+    <h3>Skill 来源（4种 + MCP）</h3>
+    <pre><code><span class="fn">getSkills</span>(cwd) 并行加载：
+  ├─ <span class="fn">getSkillDirCommands</span>(cwd)         <span class="cm">// 磁盘 .md 文件</span>
+  ├─ <span class="fn">getPluginSkills</span>()                <span class="cm">// 插件提供的 skill</span>
+  ├─ <span class="fn">getBundledSkills</span>()               <span class="cm">// 编译时内嵌（同步）</span>
+  └─ <span class="fn">getBuiltinPluginSkillCommands</span>()  <span class="cm">// 内置插件的 skill</span>
+
+<span class="fn">getAllCommands</span>(context) 还包含：
+  └─ MCP skills（type=prompt, loadedFrom=<span class="str">'mcp'</span>）</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>磁盘 Skill 搜索路径（优先级从高到低）</h3>
+    <pre><code>policySettings（企业管理）→ {managed}/.claude/skills/
+userSettings              → ~/.claude/skills/
+projectSettings           → .claude/skills/（项目根）
+遗留兼容                   → .claude/commands/</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>getCommands() 完整加载流程</h3>
+    <pre><code><span class="fn">loadAllCommands</span>(cwd)  ← memoize 缓存（磁盘 I/O 昂贵）
+  组合顺序（优先级高→低）：
+  [1] bundledSkills         编译内嵌，最高优先
+  [2] builtinPluginSkills
+  [3] skillDirCommands      磁盘 .md 文件
+  [4] workflowCommands
+  [5] pluginCommands
+  [6] pluginSkills
+  [7] COMMANDS()            内置命令（/help, /clear 等）
+
+↓ 过滤
+<span class="fn">meetsAvailabilityRequirement</span>()  → 检查 claude-ai / console 订阅
+<span class="fn">isCommandEnabled</span>()              → <span class="fn">isEnabled</span>() 检查
+
+↓ 追加
+<span class="fn">getDynamicSkills</span>()  → 运行时动态发现的 skill（如 FileRead 触发）</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>Skill Frontmatter 字段（parseFrontmatter 解析）</h3>
+    <pre><code><span class="kw">type</span> <span class="ty">FrontmatterData</span> = {
+  <span class="str">'allowed-tools'</span>?: <span class="ty">string</span> | <span class="ty">string</span>[]  <span class="cm">// 限制可用工具</span>
+  type?: <span class="str">'user'</span> | <span class="str">'feedback'</span> | <span class="str">'project'</span> | <span class="str">'reference'</span>
+  model?: <span class="str">'haiku'</span> | <span class="str">'sonnet'</span> | <span class="str">'opus'</span> | <span class="str">'inherit'</span>
+  skills?: <span class="ty">string</span>           <span class="cm">// 逗号分隔，嵌套 skill</span>
+  hooks?: <span class="ty">HooksSettings</span>     <span class="cm">// skill 级别 hook</span>
+  effort?: <span class="ty">string</span>           <span class="cm">// 'low'|'medium'|'high'|'max'|integer</span>
+  context?: <span class="str">'inline'</span> | <span class="str">'fork'</span>  <span class="cm">// 执行模式</span>
+  paths?: <span class="ty">string</span> | <span class="ty">string</span>[] <span class="cm">// glob 模式，expandBraces() 展开</span>
+  shell?: <span class="str">'bash'</span> | <span class="str">'powershell'</span>
+  description?: <span class="ty">string</span>
+  whenToUse?: <span class="ty">string</span>        <span class="cm">// 模型何时应该使用此 skill</span>
+}</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>Skill Listing 注入机制（渐进式）</h3>
+    <pre><code><span class="cm">// skill_listing attachment（每轮 getAttachmentMessages() 生成）</span>
+budget = contextWindow × 1% × 4 chars/token
+       ≈ 200K 窗口 → 8,000 chars（DEFAULT_CHAR_BUDGET）
+
+<span class="cm">// 降级策略（formatCommandsWithinBudget）</span>
+<span class="num">1</span>. 全量描述（优先）
+<span class="num">2</span>. 描述按比例截断（maxDescLen = 剩余空间 / skill数量）
+<span class="num">3</span>. 极端情况：只剩名字（- skill-name，无描述）
+
+<span class="cm">// bundled skill 永不截断</span>
+<span class="cm">// 非 bundled skill 描述最长 250 chars（MAX_LISTING_DESC_CHARS）</span></code></pre>
+
+    <h3>增量推送（sentSkillNames 追踪）</h3>
+    <pre><code>每轮 <span class="fn">getSkillListingAttachments</span>()：
+  sentSkillNames（Set，按 agentId 隔离）
+    → newSkills = allCommands.<span class="fn">filter</span>(cmd =&gt; !sent.<span class="fn">has</span>(cmd.name))
+    → 只发新增的 skill，不重复发
+    → 以 skill_listing attachment → &lt;system-reminder&gt; 注入
+
+注入格式（&lt;system-reminder&gt;）：
+  - commit: 创建 git commit
+  - review-pr: 代码审查
+  - pdf: PDF 处理
+  ...</code></pre>
+
+    <h3>实验性渐进式披露（EXPERIMENTAL_SKILL_SEARCH）</h3>
+    <pre><code>开启后，初始 skill_listing 只包含：
+  - bundled skill（内置）
+  - MCP skill
+  （用户/项目/插件 skill 不在初始列表）
+
+用户/项目 skill 通过 skill_discovery 机制按需发现：
+  - <span class="fn">getTurnZeroSkillDiscovery</span>()：第0轮阻塞式发现
+  - subagent_spawn 信号：子代理第1轮后异步发现
+  - 发现后通过 skill_discovery attachment 注入
+
+远程 skill（_canonical_&lt;slug&gt;）：
+  - <span class="fn">validateInput</span>() 检查 slug 是否在本次会话已发现
+  - <span class="fn">call</span>() 时 <span class="fn">loadRemoteSkill</span>() 从 GCS/AKI 拉取 SKILL.md
+  - 注入 newMessages（与本地 skill 相同）</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>SkillTool 执行流程（SkillTool.ts:580）</h3>
+    <pre><code><span class="fn">call</span>({ skill, args }, context, canUseTool, parentMessage)
+  ↓
+  commandName = skill.<span class="fn">trim</span>().<span class="fn">replace</span>(<span class="str">/^\//</span>, <span class="str">''</span>)  <span class="cm">// 去掉前导斜杠</span>
+
+  <span class="cm">// 远程 canonical skill（ant-only）</span>
+  <span class="kw">if</span> _canonical_&lt;slug&gt; → <span class="fn">executeRemoteSkill</span>()
+                          <span class="fn">loadRemoteSkill</span>() → 注入 newMessages
+
+  <span class="cm">// 本地 skill</span>
+  <span class="fn">findCommand</span>(commandName, commands)
+  <span class="fn">recordSkillUsage</span>(commandName)   <span class="cm">// 使用频率追踪</span>
+
+  <span class="kw">if</span> command.context === <span class="str">'fork'</span>:
+    → <span class="fn">executeForkedSkill</span>()        <span class="cm">// 启动子代理</span>
+      <span class="fn">runAgent</span>({ isAsync: <span class="kw">false</span> })
+      收集 agentMessages → <span class="fn">extractResultText</span>()
+      <span class="kw">return</span> { status: <span class="str">'forked'</span>, result }
+
+  <span class="kw">else</span> (inline):
+    → <span class="fn">processPromptSlashCommand</span>() <span class="cm">// 展开 skill 内容</span>
+      → <span class="fn">getMessagesForPromptSlashCommand</span>()
+        → 读取 .md 文件正文
+        → 替换 $ARGUMENTS
+        → 执行 !command（shell 命令替换）
+        → <span class="fn">addInvokedSkill</span>()       <span class="cm">// 注册到压缩保护状态</span>
+      → <span class="kw">return</span> processedCommand.messages
+
+    contextModifier：
+      - 更新 allowedTools（skill 声明的工具限制）
+      - 更新 model（skill 声明的模型覆盖，保留 [1m] 后缀）
+      - 更新 effortValue（skill 声明的 effort 级别）</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>SkillTool 权限检查</h3>
+    <pre><code><span class="fn">checkPermissions</span>({ skill, args }, context):
+  <span class="cm">// 规则格式</span>
+  <span class="str">"Skill(commit)"</span>       → 允许 commit skill
+  <span class="str">"Skill(review-pr:*)"</span>  → 允许所有 review-pr 开头的 skill
+
+  <span class="cm">// 检查顺序</span>
+  <span class="num">1</span>. deny 规则 → 拒绝
+  <span class="num">2</span>. remote canonical skill → 自动允许（ant-only）
+  <span class="num">3</span>. allow 规则 → 允许
+  <span class="num">4</span>. <span class="fn">skillHasOnlySafeProperties</span>() → 自动允许（安全属性白名单）
+  <span class="num">5</span>. 默认 → ask（建议添加 allow 规则）
+
+<span class="cm">// 安全属性白名单（不需要权限的属性）</span>
+SAFE_SKILL_PROPERTIES = <span class="kw">new</span> <span class="ty">Set</span>([
+  <span class="str">'type'</span>, <span class="str">'model'</span>, <span class="str">'effort'</span>, <span class="str">'source'</span>, <span class="str">'context'</span>, <span class="str">'agent'</span>,
+  <span class="str">'name'</span>, <span class="str">'description'</span>, <span class="str">'whenToUse'</span>, <span class="str">'paths'</span>, <span class="str">'skills'</span>, ...
+])
+<span class="cm">// 有 hooks、allowedTools 等非安全属性时需要权限</span></code></pre>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ===== CHAPTER 4 ===== -->
+<section class="section sec-4" id="ch4">
+  <div class="section-header">
+    <span class="section-num c-perm">Chapter 04</span>
+    <h2 class="section-title c-perm">权限系统与 Hook 机制</h2>
+  </div>
+
+  <div class="subsection">
+    <h3>权限规则数据结构</h3>
+    <pre><code><span class="kw">type</span> <span class="ty">PermissionRule</span> = {
+  source: <span class="str">'userSettings'</span>|<span class="str">'projectSettings'</span>|<span class="str">'localSettings'</span>
+        | <span class="str">'flagSettings'</span>|<span class="str">'policySettings'</span>|<span class="str">'cliArg'</span>|<span class="str">'command'</span>|<span class="str">'session'</span>
+  ruleBehavior: <span class="str">'allow'</span> | <span class="str">'deny'</span> | <span class="str">'ask'</span>
+  ruleValue: { toolName: <span class="ty">string</span>; ruleContent?: <span class="ty">string</span> }
+}
+
+<span class="cm">// 规则格式示例</span>
+<span class="str">"Bash"</span>                  → { toolName: <span class="str">'Bash'</span> }
+<span class="str">"Bash(npm install)"</span>     → { toolName: <span class="str">'Bash'</span>, ruleContent: <span class="str">'npm install'</span> }
+<span class="str">"Skill(commit)"</span>         → { toolName: <span class="str">'Skill'</span>, ruleContent: <span class="str">'commit'</span> }
+<span class="str">"mcp__github__*"</span>        → MCP 服务器级权限
+
+<span class="kw">type</span> <span class="ty">PermissionDecision</span> =
+  | { behavior: <span class="str">'allow'</span>; updatedInput?; decisionReason; acceptFeedback? }
+  | { behavior: <span class="str">'ask'</span>;   message; suggestions?: <span class="ty">PermissionUpdate</span>[];
+      blockedPath?; pendingClassifierCheck? }
+  | { behavior: <span class="str">'deny'</span>;  message; decisionReason }
+
+<span class="kw">type</span> <span class="ty">PermissionDecisionReason</span> =
+  | { type: <span class="str">'rule'</span> }
+  | { type: <span class="str">'mode'</span>; mode: <span class="ty">PermissionMode</span> }
+  | { type: <span class="str">'hook'</span> }
+  | { type: <span class="str">'classifier'</span> }
+  | { type: <span class="str">'safetyCheck'</span> }</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>权限检查完整流程（permissions.ts:473）</h3>
+    <pre><code><span class="fn">hasPermissionsToUseTool</span>(tool, input, context, assistantMsg, toolUseID)
+  │
+  ├─ <span class="fn">hasPermissionsToUseToolInner</span>()
+  │   ├─ [1a] <span class="fn">getDenyRuleForTool</span>()    → deny（规则匹配）
+  │   ├─ [1b] <span class="fn">getAskRuleForTool</span>()     → ask（规则匹配）
+  │   ├─ [1c] <span class="fn">tool.checkPermissions</span>() → 工具特定检查
+  │   ├─ [1d] 工具拒绝？
+  │   ├─ [1e] 工具需要用户交互？
+  │   ├─ [1f] 内容特定 ask 规则？
+  │   ├─ [1g] 安全检查（.git/.claude/shell 配置）
+  │   ├─ [2a] bypassPermissions/plan → allow
+  │   └─ [2b] <span class="fn">toolAlwaysAllowedRule</span>() → allow
+  │
+  └─ 后处理（模式转换）
+      ├─ dontAsk：ask → deny
+      ├─ auto（ant-only）：
+      │   ├─ acceptEdits 快速路径（跳过分类器）
+      │   ├─ 安全工具白名单 → 直接 allow
+      │   ├─ <span class="fn">classifyYoloAction</span>() → YoloClassifierResult
+      │   │   ├─ stage:<span class="str">'fast'</span> → stage:<span class="str">'thinking'</span>（2阶段）
+      │   │   ├─ shouldBlock=false → allow
+      │   │   └─ shouldBlock=true  → deny + 记录拒绝计数
+      │   └─ 超过拒绝限制 → 回退人工确认
+      └─ shouldAvoidPermissionPrompts（无头代理）：
+          └─ <span class="fn">runPermissionRequestHooksForHeadlessAgent</span>()</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>4种权限模式</h3>
+    <div class="card">
+      <ul>
+        <li><strong class="c-perm">default</strong>：标准确认流程</li>
+        <li><strong class="c-perm">acceptEdits</strong>：编辑类操作快速路径（permissions.ts:607）<br>
+          <code>if (isAcceptEditsMode &amp;&amp; isEditLikeOperation(tool)) return allow</code></li>
+        <li><strong class="c-perm">bypassPermissions</strong>：绕过所有检查（permissions.ts:1268）<br>
+          <code>if (mode === 'bypassPermissions') return { behavior:'allow', decisionReason:{type:'mode'} }</code></li>
+        <li><strong class="c-perm">dontAsk</strong>：ask → deny（permissions.ts:508）<br>
+          <code>if (mode === 'dontAsk') return { behavior:'deny', message: DONT_ASK_REJECT_MESSAGE(tool.name) }</code></li>
+        <li><strong class="c-perm">auto</strong>（ant-only）：2阶段分类器 + 拒绝计数</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3>Hook 系统</h3>
+    <pre><code><span class="cm">// Hook 命令类型（hooksSettings.ts:33）</span>
+<span class="kw">type</span> <span class="ty">HookCommand</span> =
+  | { type: <span class="str">'command'</span>; command: <span class="ty">string</span>; shell?: <span class="ty">string</span>; timeout?: <span class="ty">number</span> }
+  | { type: <span class="str">'prompt'</span>;  prompt: <span class="ty">string</span> }
+  | { type: <span class="str">'agent'</span>;   prompt: <span class="ty">string</span> }
+  | { type: <span class="str">'http'</span>;    url: <span class="ty">string</span> }
+  | { type: <span class="str">'callback'</span>; callback: (input, toolUseID, ...) =&gt; <span class="ty">Promise</span>&lt;<span class="ty">HookJSONOutput</span>&gt; }
+
+<span class="cm">// 25种事件（关键的）</span>
+PreToolUse        <span class="cm">// 工具执行前，可修改 input 或阻止</span>
+PostToolUse       <span class="cm">// 工具执行后，可附加上下文</span>
+PermissionRequest <span class="cm">// 权限对话时（无头代理决策）</span>
+SessionStart      <span class="cm">// 会话启动，可设置 watchPaths</span>
+UserPromptSubmit  <span class="cm">// 用户提交提示时</span>
+
+<span class="cm">// Hook JSON 输出</span>
+<span class="kw">type</span> <span class="ty">HookJSONOutput</span> = {
+  continue?: <span class="ty">boolean</span>              <span class="cm">// false=停止执行</span>
+  decision?: <span class="str">'approve'</span> | <span class="str">'block'</span>
+  hookSpecificOutput?: {
+    permissionDecision?: <span class="str">'allow'</span> | <span class="str">'deny'</span> | <span class="str">'ask'</span>
+    updatedInput?: <span class="ty">Record</span>&lt;<span class="ty">string</span>, <span class="kw">unknown</span>&gt;  <span class="cm">// 修改工具输入</span>
+    additionalContext?: <span class="ty">string</span>
+  }
+}
+<span class="cm">// 退出码：0=成功，2=阻止操作，其他=非阻止错误</span>
+
+<span class="cm">// 执行：并行，各自独立超时</span>
+<span class="cm">// 快速路径：仅 callback hooks 跳过 JSON 序列化（性能提升70%）</span></code></pre>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ===== CHAPTER 5 ===== -->
+<section class="section sec-5" id="ch5">
+  <div class="section-header">
+    <span class="section-num c-config">Chapter 05</span>
+    <h2 class="section-title c-config">配置系统与内存系统</h2>
+  </div>
+
+  <div class="subsection">
+    <h3>9层配置优先级（高→低）</h3>
+    <pre><code><span class="num">1</span>. CLI Flags（--effort, --cowork 等）
+<span class="num">2</span>. 环境变量（CLAUDE_CODE_* vars）
+<span class="num">3</span>. --settings-file 指定文件
+<span class="num">4</span>. Remote Managed Settings（GrowthBook 下发策略）
+<span class="num">5</span>. MDM/Registry Policies（macOS plist, Windows HKLM/HKCU）
+<span class="num">6</span>. File-Based Managed（managed-settings.json + managed-settings.d/*.json 字母序合并）
+<span class="num">7</span>. Project Settings（.claude/settings.json）
+<span class="num">8</span>. Local Settings（CLAUDE.local.md）
+<span class="num">9</span>. User Settings（~/.claude/settings.json）</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>存储路径结构</h3>
+    <pre><code>~/.claude/
+  ├── .claude.json              GlobalConfig（100+字段）
+  ├── settings.json             SettingsJson（Zod schema 验证）
+  ├── managed-settings.json     企业策略基础
+  ├── managed-settings.d/       策略 drop-in（字母序合并）
+  │   ├── 10-otel.json
+  │   └── 20-security.json
+  ├── backups/                  5个最近时间戳备份
+  ├── memory/                   自动内存
+  │   ├── MEMORY.md             索引文件
+  │   ├── user_*.md
+  │   ├── feedback_*.md
+  │   ├── project_*.md
+  │   └── reference_*.md
+  ├── session-memory/           会话内存
+  ├── agent-memory/             代理内存
+  ├── teams/                    团队配置
+  ├── tasks/                    任务列表
+  └── subagents/                子代理 transcript</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>CLAUDE.md 解析</h3>
+    <pre><code><span class="cm">// 文件发现：向上遍历查找 .git 目录（memoize 缓存）</span>
+<span class="fn">getProjectPathForConfig</span>():
+  start at <span class="fn">getOriginalCwd</span>()
+  → 向上遍历查找 .git 目录 → 项目根
+  → 无 .git → 使用当前目录
+
+<span class="cm">// 解析（frontmatterParser.ts）</span>
+<span class="fn">parseFrontmatter</span>(markdown, sourcePath): <span class="ty">ParsedMarkdown</span>
+  → 正则提取：<span class="str">/^---\s*
+([\s\S]*?)---\s*
+?/</span>
+  → <span class="fn">quoteProblematicValues</span>() 预处理特殊字符
+  → YAML 解析失败 → 降级为空 frontmatter（不中断启动）
+
+<span class="cm">// paths 字段支持大括号展开</span>
+<span class="str">"src/{components,hooks}/**/*.tsx"</span>
+  → <span class="fn">expandBraces</span>() → [<span class="str">"src/components/**/*.tsx"</span>, <span class="str">"src/hooks/**/*.tsx"</span>]</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>自动内存系统</h3>
+    <pre><code>内存类型分类：
+  personal  → ~/.claude/memory/（MEMORY.md 索引 + 类型文件）
+  team      → memdir/team/（TEAMMEM feature）
+  session   → ~/.claude/session-memory/
+  agent     → .claude/agent-memory/ 或 ~/.claude/agent-memory/
+
+注入流程：
+  <span class="fn">loadMemoryPrompt</span>()
+    → 读取 MEMORY.md 索引
+    → 加载各内存文件内容
+    → 生成 memoryMechanicsPrompt
+    → 注入 system prompt（第2层）
+
+写入：通过普通 Write/Edit 工具，模型自主维护
+检测：<span class="fn">isAutoManagedMemoryFile</span>() 区分 Claude 管理 vs 用户管理</code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>热更新机制</h3>
+    <pre><code><span class="cm">// 写入（saveGlobalConfig）</span>
+<span class="fn">lockfile.lockSync</span>()      <span class="cm">// 文件锁</span>
+→ 读取当前配置
+→ 应用 updater 函数
+→ 写入临时文件
+→ 原子 rename
+→ 时间戳备份（保留5个）
+
+<span class="cm">// 热更新（1000ms 轮询）</span>
+<span class="fn">fs.watchFile</span>(<span class="str">'~/.claude.json'</span>, { interval: <span class="num">1000</span> })
+  → changeDetector.fanOut
+  → 清除 settingsCache
+  → <span class="fn">getInitialSettings</span>()（重新读取）
+  → <span class="fn">applySettingsChange</span>(source, setAppState)
+      ├─ <span class="fn">loadAllPermissionRulesFromDisk</span>()
+      ├─ <span class="fn">updateHooksConfigSnapshot</span>()
+      └─ <span class="fn">setAppState</span>({ settings, toolPermissionContext, ... })</code></pre>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ===== CHAPTER 6 ===== -->
+<section class="section sec-6" id="ch6">
+  <div class="section-header">
+    <span class="section-num c-mcp">Chapter 06</span>
+    <h2 class="section-title c-mcp">MCP 集成与多代理系统</h2>
+  </div>
+
+  <div class="subsection">
+    <h3>MCP 传输层（8种）</h3>
+    <pre><code><span class="kw">type</span> <span class="ty">MCPTransportType</span> =
+  | <span class="str">'stdio'</span>          <span class="cm">// 本地子进程（StdioClientTransport）</span>
+  | <span class="str">'sse'</span>            <span class="cm">// Server-Sent Events</span>
+  | <span class="str">'http'</span>           <span class="cm">// 流式 HTTP（StreamableHTTPClientTransport）</span>
+  | <span class="str">'ws'</span>             <span class="cm">// WebSocket（自定义实现）</span>
+  | <span class="str">'sse-ide'</span>        <span class="cm">// IDE 扩展专用</span>
+  | <span class="str">'ws-ide'</span>         <span class="cm">// IDE WebSocket</span>
+  | <span class="str">'sdk'</span>            <span class="cm">// Agent SDK 内置</span>
+  | <span class="str">'claudeai-proxy'</span> <span class="cm">// Claude.ai 代理</span></code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>MCP 工具包装</h3>
+    <pre><code><span class="cm">// MCPTool 包装（tools/MCPTool/MCPTool.ts）</span>
+<span class="ty">MCPTool</span> {
+  name: <span class="fn">buildMcpToolName</span>(serverName, toolName)  <span class="cm">// "server__tool"</span>
+  isMcp: <span class="kw">true</span>                                   <span class="cm">// → isDeferredTool() = true（默认延迟）</span>
+  alwaysLoad: tool._meta?.[<span class="str">'anthropic/alwaysLoad'</span>] <span class="cm">// MCP 服务器可 opt-out 延迟</span>
+  call: (input) =&gt; client.<span class="fn">callTool</span>(toolName, input)
+  <span class="cm">// OAuth 错误 → needs-auth 状态</span>
+  <span class="cm">// 结果截断：mcpContentNeedsTruncation()</span>
+}
+
+<span class="cm">// 多服务器管理</span>
+<span class="fn">getAllMcpConfigs</span>():
+  - ~/.claude/mcp.json（全局）
+  - ~/.claude/claude.json（用户）
+  - 插件 manifest（<span class="fn">loadPluginMcpServers</span>()）
+<span class="fn">memoize</span>(connectToServer)  <span class="cm">// 单例连接缓存</span></code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>Agent Tool 实现</h3>
+    <pre><code><span class="cm">// runAgent()（tools/AgentTool/runAgent.ts）</span>
+<span class="kw">async</span> <span class="kw">function</span>* <span class="fn">runAgent</span>({
+  agentDefinition: <span class="ty">AgentDefinition</span>,
+  promptMessages: <span class="ty">Message</span>[],
+  toolUseContext: <span class="ty">ToolUseContext</span>,
+  isAsync: <span class="ty">boolean</span>,
+  override?: { systemPrompt?, abortController?, agentId? }
+}): <span class="ty">AsyncGenerator</span>&lt;<span class="ty">Message</span>, <span class="kw">void</span>&gt;
+
+<span class="cm">// 两种模式</span>
+isAsync=<span class="kw">false</span>: 共享父 AbortController，阻塞等待，结果直接返回
+isAsync=<span class="kw">true</span>:  独立 AbortController，后台运行，task-notification 通知
+
+<span class="cm">// 权限继承优先级</span>
+代理定义 permissionMode &gt; 父代理 permissionMode &gt; 默认
+allowedTools 白名单：替换 session 级规则（保留 CLI 级规则）
+
+<span class="cm">// 消息持久化</span>
+~/.claude/subagents/{agentId}/transcript.jsonl
+~/.claude/subagents/{agentId}/metadata.json  <span class="cm">// { agentType, worktreePath }</span></code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>Team 系统</h3>
+    <pre><code><span class="cm">// TeamFile（~/.claude/teams/{name}/config.json）</span>
+members: [{
+  agentId: <span class="ty">string</span>          <span class="cm">// "name@team-name"</span>
+  name: <span class="ty">string</span>
+  tmuxPaneId: <span class="ty">string</span>
+  cwd: <span class="ty">string</span>
+  subscriptions: <span class="ty">string</span>[]
+  backendType: <span class="str">'tmux'</span> | <span class="str">'iTerm2'</span> | <span class="str">'in-process'</span>
+  isActive?: <span class="ty">boolean</span>       <span class="cm">// 空闲状态</span>
+  mode?: <span class="ty">PermissionMode</span>
+}]
+
+<span class="cm">// Task（~/.claude/tasks/{team}/task-{id}.json）</span>
+{ id, subject, description, owner, status, blocks, blockedBy, metadata }
+
+<span class="cm">// 并发控制</span>
+<span class="fn">lockfile.lockSync</span>()  <span class="cm">// 30次重试，5-100ms 间隔</span>
+.highwatermark       <span class="cm">// 原子递增，防止 ID 重用</span>
+
+<span class="cm">// 消息路由（SendMessage）</span>
+to: <span class="str">"name"</span> → TeamFile 查找
+           → tmux 队友：<span class="fn">writeToMailbox</span>(~/.claude/teammate-mailbox/{agentId}/messages.jsonl)
+           → 同进程：<span class="fn">queuePendingMessage</span>()（直接内存队列）
+to: <span class="str">"*"</span>    → 广播所有成员
+轮询：useInboxPoller 每1-2秒检查</code></pre>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ===== CHAPTER 7 ===== -->
+<section class="section sec-7" id="ch7">
+  <div class="section-header">
+    <span class="section-num c-ui">Chapter 07</span>
+    <h2 class="section-title c-ui">终端 UI 与 Bridge 通信</h2>
+  </div>
+
+  <div class="subsection">
+    <h3>Ink + React 渲染管线</h3>
+    <pre><code>用户输入
+  ↓ stdin.on(<span class="str">'data'</span>) Raw Mode
+  ↓ <span class="fn">parseMultipleKeypresses</span>()   解析 ESC 序列
+    支持：Kitty 协议 | xterm modifyOtherKeys | 传统 xterm | SGR 鼠标
+  ↓ <span class="ty">App</span>.<span class="fn">handleInput</span>() → <span class="ty">InputEvent</span>
+  ↓ useInput 回调 → REPL 处理
+  ↓ React <span class="fn">setState</span>()
+  ↓ React Reconciler（ConcurrentRoot）协调 Fiber 树
+  ↓ Ink DOM 更新
+  ↓ Yoga 布局引擎重算
+  ↓ renderer.ts 生成输出
+  ↓ <span class="fn">optimize</span>() 差量计算（双缓冲：frontFrame/backFrame）
+  ↓ <span class="fn">writeDiffToTerminal</span>()  只发送变化的单元格
+  ↓ ANSI 转义序列 → 终端显示
+
+组件树：
+<span class="ty">App</span>(PureComponent)
+  └─ <span class="ty">REPL</span>(screens/REPL.tsx)
+      ├─ <span class="ty">PromptInput</span>
+      └─ <span class="ty">VirtualMessageList</span></code></pre>
+  </div>
+
+  <div class="subsection">
+    <h3>Bridge 协议</h3>
+    <pre><code><span class="cm">// bridgeMain.ts：多会话管理</span>
+<span class="kw">type</span> <span class="ty">BackoffConfig</span> = {
+  connInitialMs: <span class="num">2000</span>; connCapMs: <span class="num">120000</span>; connGiveUpMs: <span class="num">600000</span>
+}
+
+<span class="cm">// replBridge.ts：单会话</span>
+<span class="kw">type</span> <span class="ty">ReplBridgeHandle</span> = {
+  bridgeSessionId: <span class="ty">string</span>
+  <span class="fn">writeMessages</span>(messages: <span class="ty">Message</span>[]): <span class="kw">void</span>
+  <span class="fn">writeSdkMessages</span>(messages: <span class="ty">SDKMessage</span>[]): <span class="kw">void</span>
+  <span class="fn">sendControlRequest</span>(request: <span class="ty">SDKControlRequest</span>): <span class="kw">void</span>
+  <span class="fn">teardown</span>(): <span class="ty">Promise</span>&lt;<span class="kw">void</span>&gt;
+}
+
+<span class="cm">// 控制消息</span>
+<span class="kw">type</span> <span class="ty">SDKControlRequest</span> = {
+  type: <span class="str">'control_request'</span>; request_id: <span class="ty">string</span>
+  request: {
+    subtype: <span class="str">'initialize'</span> | <span class="str">'set_model'</span> | <span class="str">'interrupt'</span>
+           | <span class="str">'set_permission_mode'</span> | <span class="str">'set_max_thinking_tokens'</span>
+  }
+}
+
+<span class="cm">// 传输层</span>
+<span class="cm">// v1：HybridTransport（WebSocket 读 + POST 写）</span>
+<span class="cm">// v2：SSETransport（读）+ CCRClient（POST 写到 /worker/*）</span>
+<span class="cm">// echo 过滤：BoundedUUIDSet FIFO 有界集合</span></code></pre>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ===== ARCH DIAGRAM ===== -->
+<section class="section" id="arch" style="border-left: 4px solid #56cfb2; padding-left: 20px;">
+  <div class="section-header">
+    <span class="section-num" style="color:#56cfb2;">Architecture</span>
+    <h2 class="section-title" style="color:#56cfb2;">模块间交互关系图</h2>
+  </div>
+  <div class="subsection">
+    <h3 style="border-left: 3px solid #56cfb2;">完整系统交互流程</h3>
+    <pre><code>用户输入
+    │
+    ▼
+[<span class="c-ui">终端 UI / Bridge</span>]
+    │ submitMessage()
+    ▼
+[<span class="c-query">Query Engine</span>]──────getSystemPrompt()──────────►[<span class="c-config">配置/内存系统</span>]
+    │              loadMemoryPrompt()◄──────────  MEMORY.md 内容
+    │
+    │──callModel()──────────────────────────────►Anthropic API
+    │◄──────────────────────────────────────────  流式响应
+    │
+    │  for each tool_use block:
+    │    canUseTool()──────────────────────────►[<span class="c-perm">权限系统</span>]
+    │◄────────────────────────────────────────── allow/deny/ask
+    │    tool.call()───────────────────────────►[<span class="c-tool">工具系统</span>]
+    │◄─────────────────────────────────────────  ToolResult
+    │      │
+    │      ├─SkillTool──────────────────────────►[<span class="c-skill">Skill系统</span>]
+    │      │◄──────────────────────────────────  newMessages(展开内容)
+    │      │
+    │      ├─AgentTool──────────────────────────►[<span class="c-mcp">多代理系统</span>]
+    │      │◄──────────────────────────────────  子代理结果
+    │      │
+    │      └─MCPTool────────────────────────────►[<span class="c-mcp">MCP Server</span>]
+    │◄─────────────────────────────────────────  工具结果
+    │
+    │ yield Message──────────────────────────────►[<span class="c-ui">终端 UI / Bridge</span>]
+    ▼
+Terminal（completed/aborted/...）
+
+[<span class="c-tool">工具系统</span>]──────checkPermissions()──────────────►[<span class="c-perm">权限系统</span>]
+[<span class="c-tool">工具系统</span>]──────读取设置/路径───────────────────►[<span class="c-config">配置系统</span>]
+[<span class="c-config">配置系统</span>]──────loadAllPermissionRulesFromDisk()►[<span class="c-perm">权限系统</span>]
+[<span class="c-config">配置系统</span>]──────updateHooksConfigSnapshot()─────►[<span class="c-perm">Hook系统</span>]
+[<span class="c-perm">权限系统</span>]──────executePermissionRequestHooks()─►[<span class="c-perm">Hook系统</span>]
+[<span class="c-skill">Skill系统</span>]─────getCommands()/memoize──────────►[磁盘/插件/MCP]
+[<span class="c-mcp">多代理系统</span>]────runAgent() → query()────────────►[<span class="c-query">Query Engine</span>]（递归）
+[<span class="c-ui">终端 UI</span>]───────ReplBridgeHandle──────────────►[<span class="c-ui">Bridge/IDE扩展</span>]</code></pre>
+  </div>
+</section>
+
+<footer>
+  <p>生成时间：2026-04-15 | 分析范围：Claude Code src/ 完整源码</p>
+  <p style="margin-top:8px;">涵盖模块：Query Engine · Tool System · Skill System · Permission System · Configuration &amp; Memory · MCP Integration · Multi-Agent · Terminal UI · Bridge Protocol</p>
+  <p style="margin-top:8px; opacity:0.5;">Deep Technical Analysis Report — Claude Code Architecture</p>
+</footer>
+
+</div><!-- /container -->
+</body>
+</html>
